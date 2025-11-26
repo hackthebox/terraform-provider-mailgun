@@ -1,11 +1,11 @@
 # Terraform Provider for Mailgun
 
-This Terraform provider allows you to manage [Mailgun](https://www.mailgun.com/) resources through Terraform. It provides the ability to create, read, update, and delete Mailgun domains, as well as retrieve information about existing domains.
+This Terraform provider allows you to manage [Mailgun](https://www.mailgun.com/) resources through Terraform. It provides the ability to create, read, update, and delete Mailgun domains, SMTP credentials, and API keys.
 
 ## Requirements
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
-- [Go](https://golang.org/doc/install) >= 1.22 (for development)
+- [Go](https://golang.org/doc/install) >= 1.24 (for development)
 - A Mailgun account with an API key
 
 ## Installation
@@ -16,7 +16,8 @@ Add the provider to your Terraform configuration:
 terraform {
   required_providers {
     mailgun = {
-      source = "registry.terraform.io/dimoschi/mailgun"
+      source  = "dimoschi/mailgun"
+      version = "~> 0.1"
     }
   }
 }
@@ -28,9 +29,8 @@ The provider needs to be configured with your Mailgun API key. You can also opti
 
 ```hcl
 provider "mailgun" {
-  api_key  = var.mailgun_api_key  # Required
-  region   = "US"                 # Optional, can be "US" or "EU"
-  endpoint = null                 # Optional, defaults to "https://api.mailgun.net"
+  api_key  = var.mailgun_api_key  # Required (or set MAILGUN_API_KEY env var)
+  region   = "US"                 # Optional: "US" (default) or "EU"
 }
 ```
 
@@ -38,82 +38,158 @@ provider "mailgun" {
 
 | Parameter | Description | Required | Default |
 |-----------|-------------|----------|---------|
-| `api_key` | Your Mailgun API key | Yes | - |
-| `region` | The Mailgun region (US or EU) | No | US |
-| `endpoint` | The Mailgun API endpoint | No | https://api.mailgun.net |
+| `api_key` | Your Mailgun API key. Can also be set via `MAILGUN_API_KEY` environment variable | Yes | - |
+| `region` | The Mailgun region (`US` or `EU`) | No | `US` |
+| `endpoint` | Custom Mailgun API endpoint (overrides region) | No | - |
 
-## Resources and Data Sources
+## Resources
 
-### Resources
-
-#### `mailgun_domain`
+### `mailgun_domain`
 
 Manages a Mailgun domain.
 
 ```hcl
 resource "mailgun_domain" "example" {
-  name                = "example.com"
-  wildcard            = true
-  spam_action         = "disabled"
-  force_dkim_authority = true
-  dkim_key_size       = "2048"
-  web_scheme          = "https"
+  name                          = "mail.example.com"
+  spam_action                   = "tag"
+  wildcard                      = false
+  use_automatic_sender_security = true
+  dkim_key_size                 = "2048"
+  web_scheme                    = "https"
 }
 ```
 
-See the [domain resource documentation](docs/resources/domain.md) for all available parameters.
+### `mailgun_smtp_credential`
 
-### Data Sources
-
-#### `mailgun_domains`
-
-Retrieves a list of all domains in your Mailgun account.
+Manages SMTP credentials for sending email via SMTP.
 
 ```hcl
-data "mailgun_domains" "all" {}
+resource "mailgun_smtp_credential" "app" {
+  domain   = mailgun_domain.example.name
+  login    = "app-sender"
+  password = var.smtp_password
+}
 
-output "all_domains" {
-  value = data.mailgun_domains.all.items
+# The full SMTP login will be: app-sender@mail.example.com
+output "smtp_login" {
+  value = mailgun_smtp_credential.app.full_login
 }
 ```
 
-See the [domains data source documentation](docs/data-sources/domains.md) for all available parameters.
+### `mailgun_api_key`
 
-## Usage Example
+Manages Mailgun API keys for programmatic access.
+
+```hcl
+resource "mailgun_api_key" "sending" {
+  role        = "sending"
+  description = "API key for sending emails"
+  domain_name = mailgun_domain.example.name
+}
+
+# Store the secret in Vault or another secrets manager
+output "api_key_secret" {
+  value     = mailgun_api_key.sending.secret
+  sensitive = true
+}
+```
+
+## Data Sources
+
+### `mailgun_domains` / `mailgun_domain`
+
+Query existing domains.
+
+```hcl
+# List all domains
+data "mailgun_domains" "all" {}
+
+# Get a specific domain
+data "mailgun_domain" "example" {
+  name = "mail.example.com"
+}
+```
+
+### `mailgun_smtp_credentials` / `mailgun_smtp_credential`
+
+Query existing SMTP credentials.
+
+```hcl
+# List all SMTP credentials for a domain
+data "mailgun_smtp_credentials" "all" {
+  domain = "mail.example.com"
+}
+```
+
+### `mailgun_api_keys` / `mailgun_api_key`
+
+Query existing API keys.
+
+```hcl
+# List all API keys
+data "mailgun_api_keys" "all" {}
+```
+
+## Complete Example with Vault Integration
+
+A common use case is to create credentials and store them in HashiCorp Vault:
 
 ```hcl
 terraform {
   required_providers {
     mailgun = {
-      source = "registry.terraform.io/dimoschi/mailgun"
+      source  = "dimoschi/mailgun"
+      version = "~> 0.1"
+    }
+    vault = {
+      source  = "hashicorp/vault"
+      version = "~> 4.0"
     }
   }
 }
 
-variable "mailgun_api_key" {
-  description = "Mailgun API key"
-  type        = string
-  sensitive   = true
-}
-
 provider "mailgun" {
   api_key = var.mailgun_api_key
-  region  = "US"
+  region  = "EU"
 }
 
-# Create a new domain
-resource "mailgun_domain" "example" {
-  name        = "example.com"
-  wildcard    = true
+# Create domain
+resource "mailgun_domain" "app" {
+  name        = "mail.myapp.com"
   spam_action = "tag"
-  web_scheme  = "https"
 }
 
-# List all domains
-data "mailgun_domains" "all" {}
+# Create SMTP credential
+resource "mailgun_smtp_credential" "app" {
+  domain   = mailgun_domain.app.name
+  login    = "app-mailer"
+  password = random_password.smtp.result
+}
 
-output "all_domains" {
-  value = data.mailgun_domains.all.items
+resource "random_password" "smtp" {
+  length  = 32
+  special = false
+}
+
+# Create API key for sending
+resource "mailgun_api_key" "app" {
+  role        = "sending"
+  description = "MyApp sending key"
+  domain_name = mailgun_domain.app.name
+}
+
+# Store credentials in Vault
+resource "vault_kv_secret_v2" "mailgun" {
+  mount = "secret"
+  name  = "myapp/mailgun"
+
+  data_json = jsonencode({
+    smtp_host     = "smtp.eu.mailgun.org"
+    smtp_port     = "587"
+    smtp_username = mailgun_smtp_credential.app.full_login
+    smtp_password = random_password.smtp.result
+    api_key       = mailgun_api_key.app.secret
+  })
 }
 ```
 
@@ -121,41 +197,28 @@ output "all_domains" {
 
 ### Building the Provider
 
-1. Clone the repository
-2. Enter the repository directory
-3. Build the provider using the Go `install` command:
-
 ```shell
-go install
+git clone https://github.com/hackthebox/terraform-provider-mailgun.git
+cd terraform-provider-mailgun
+make build
 ```
 
-### Adding Dependencies
-
-This provider uses [Go modules](https://github.com/golang/go/wiki/Modules).
-Please see the Go documentation for the most up to date information about using Go modules.
-
-To add a new dependency `github.com/author/dependency` to your Terraform provider:
+### Running Tests
 
 ```shell
-go get github.com/author/dependency
-go mod tidy
-```
+# Unit tests
+make test
 
-Then commit the changes to `go.mod` and `go.sum`.
-
-### Testing
-
-To run the provider tests:
-
-```shell
+# Acceptance tests (requires MAILGUN_API_KEY)
+export MAILGUN_API_KEY="your-api-key"
 make testacc
 ```
 
-*Note:* Acceptance tests create real resources, and often cost money to run.
+### Local Installation
 
-### Generating the Provider
-
-This provider was generated using the OpenAPI Provider Spec Generator. For more information on how to regenerate the provider, see [README-terraform-provider-generation.md](README-terraform-provider-generation.md).
+```shell
+make install
+```
 
 ## License
 
