@@ -1,6 +1,6 @@
 module github.com/dimoschi/terraform-provider-mailgun
 
-go 1.25.4
+go 1.24.10
 
 require (
 	github.com/hashicorp/terraform-plugin-framework v1.16.1
