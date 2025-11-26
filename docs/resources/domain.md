@@ -3,12 +3,12 @@
 page_title: "mailgun_domain Resource - mailgun"
 subcategory: ""
 description: |-
-  
+  Manages a Mailgun domain. Domains are used to send and receive email.
 ---
 
 # mailgun_domain (Resource)
 
-
+Manages a Mailgun domain. Domains are used to send and receive email.
 
 
 
@@ -17,89 +17,67 @@ description: |-
 
 ### Required
 
-- `name` (String) The name of the new domain
+- `name` (String) The domain name to be used for sending and receiving email.
 
 ### Optional
 
-- `archive_to` (String) If set to a URL, then each successfully delivered message will be submitted in an HTTP POST request to the URL. The Content-Type of the POST requests is application/mime and the request body is exactly what the recipient SMTP server received.
-- `dkim_host_name` (String) Set the DKIM host name for the domain that is being created.  Note, the value must be a valid domain name, and can be the domain name being created, a subdomain of the domain being created, or the root domain. This parameter cannot be used in conjunction with force_dkim_authority or force_root_dkim_host.
-- `dkim_key_size` (String) The size of the new domain's DKIM key. Shall be either 1024 or 2048.
-- `dkim_selector` (String) Explicitly set the value of the DKIM selector for the domain being created. If the domain key does not already exist, one will be created.  The selector must be a valid atom per RFC2822. e.g valid value `foobar`, invalid value `foo.bar`
-
-https://datatracker.ietf.org/doc/html/rfc2822#section-3.2.4
-- `encrypt_incoming_message` (Boolean) Enable encrypting incoming messages for the given domain. This cannot be altered via API after being set for security purposes. Reach out to Support to disable if necessary. Default to false
-- `force_dkim_authority` (Boolean) If set to true, the domain will be the DKIM authority for itself even if the root domain is registered on the same mailgun account. If set to false, the domain will have the same DKIM authority as the root domain registered on the same mailgun account. Default to false.
-- `force_root_dkim_host` (Boolean) If set to true, the root domain will be the DKIM Host for the domain being created even if the root domain itself is not registered with Mailgun. The domain being created will still need to pass domain verification with valid spf records for the domain and valid DKIM record for the root domain.  This does not effect the smtp mail-from host for the domain being created. The mail-from host will remain the domain name being created, not the root domain.
-- `hextended` (Boolean) Default to false. If set to true, domain payload will include dkim_host, mailfrom_host and pod
-- `hwith_dns` (Boolean) Default to true, domain payload will include sending and receiving dns records payload
-- `ips` (String) An optional, comma-separated list of IP addresses to be assigned to this domain. If not specified, all dedicated IP addresses on the account will be assigned. If the request cannot be fulfilled (e.g. a requested IP is not assigned to the account, etc), a 400 will be returned.
-- `message_ttl` (Number) Specifies the time-to-live (TTL) in seconds for retrieving both incoming and outgoing messages. The maximum TTL value is determined by your subscription plan.
-- `pool_id` (String) Requested IP Pool to be assigned to the domain at creation.
-- `require_tls` (Boolean) If set to true, this requires messages for the domain only be sent over a TLS connection. If a TLS connection cannot be established, Mailgun will not deliver the message.
-
-If set to false, Mailgun will still try and upgrade the connection, but if Mailgun cannot, the message will be delivered over a plaintext SMTP connection.
-
-The default value is false.
-- `skip_verification` (Boolean) If set to true, the certificate and hostname will not be verified when trying to establish a TLS connection and Mailgun will accept any certificate during delivery of a message.
-
-If set to false, Mailgun will verify the certificate and hostname. If either one can not be verified, a TLS connection will not be established.
-
-The default value is false.
-- `smtp_password` (String) Password for SMTP authentication
-- `spam_action` (String) Disabled, block or tag. Default to disabled. If disabled, no spam filtering will occur for inbound messages.
-
-If block, inbound spam messages will not be delivered.
-
-If tag, inbound messages will be tagged with a spam header. See Spam Filter.
-- `use_automatic_sender_security` (Boolean) Enable Automatic Sender Security. This requires setting DNS CNAME entries for DKIM keys instead of a TXT record. Defaults to false.
-- `web_prefix` (String) Sets your open, click and unsubscribe URLs domain name prefix. Links rewritten or added by Mailgun in your emails will look like <web_scheme>://<web_prefix>.<domain_name>/... Default to email
-- `web_scheme` (String) Sets your open, click and unsubscribe URLs to use http or https. Value either `http` or `https`. Defaults to http. In order for https to work, you must have a valid cert created for your domain. See Domain Tracking for TLS cert generation.
-- `wildcard` (Boolean) Allows domain to accept inbound messages received on subdomains that have MX records pointed to Mailgun. Default is false.
+- `dkim_host_name` (String) DKIM host name.
+- `dkim_key_size` (String) DKIM key size (1024 or 2048).
+- `dkim_selector` (String) DKIM selector (custom CNAME for DKIM).
+- `encrypt_incoming_message` (Boolean) Whether to encrypt incoming messages.
+- `force_dkim_authority` (Boolean) If set to true, the domain will be the DKIM authority for itself even if the root domain is registered on the same mailgun account.
+- `force_root_dkim_host` (Boolean) Force using root domain for DKIM.
+- `hextended` (Boolean) Whether to use extended headers.
+- `hwith_dns` (Boolean) Whether to use DNS for headers.
+- `ips` (String) Comma-separated list of IPs to be assigned to this domain.
+- `message` (String) Custom message for domain creation.
+- `pool_id` (String) The id of the IP Pool that you wish to assign to the domain.
+- `smtp_password` (String, Sensitive) Password for SMTP authentication.
+- `spam_action` (String) Spam filter action for new domain. Options: 'disabled', 'tag', or 'delete'.
+- `use_automatic_sender_security` (Boolean) Whether to use automatic sender security (SPF/DKIM/DMARC).
+- `web_prefix` (String) Web prefix for tracking links.
+- `web_scheme` (String) Web scheme for tracking links (http or https).
+- `wildcard` (Boolean) Determines whether the domain will accept email for sub-domains.
 
 ### Read-Only
 
-- `domain` (Attributes) (see [below for nested schema](#nestedatt--domain))
-- `message` (String) Response message
-- `receiving_dns_records` (Attributes List) List of DNS records required for receiving emails (see [below for nested schema](#nestedatt--receiving_dns_records))
-- `sending_dns_records` (Attributes List) List of DNS records required for sending emails (see [below for nested schema](#nestedatt--sending_dns_records))
+- `domain` (Attributes) Domain details returned from the API. (see [below for nested schema](#nestedatt--domain))
+- `receiving_dns_records` (Attributes List) DNS records for receiving email. (see [below for nested schema](#nestedatt--receiving_dns_records))
+- `sending_dns_records` (Attributes List) DNS records for sending email. (see [below for nested schema](#nestedatt--sending_dns_records))
 
 <a id="nestedatt--domain"></a>
 ### Nested Schema for `domain`
 
 Read-Only:
 
-- `archive_to` (String) URL that a copy of each successfully delivered message is going to be posted to.
-- `created_at` (String) Timestamp indicating when the domain was created in RFC1123 format
-- `disabled` (Attributes) (see [below for nested schema](#nestedatt--domain--disabled))
-- `encrypt_incoming_message` (Boolean) If true incoming messages to this domain will be encrypted
-- `id` (String) Unique identifier of the domain
-- `is_disabled` (Boolean) Indicates whether the domain is currently disabled
-- `message_ttl` (Number) Specifies the time-to-live (TTL) in seconds for retrieving both incoming and outgoing messages. The maximum TTL value is determined by your subscription plan
-- `name` (String) Fully qualified domain name registered with Mailgun
-- `require_tls` (Boolean) If true Mailgun will only send messages over a TLS connection
-- `skip_verification` (Boolean) If true Mailgun will not verify the certificate and hostname when setting up a TLS connection
-- `smtp_login` (String) SMTP login username for the domain
-- `smtp_password` (String) Optional SMTP password for the domain used for SMTP authentication
-- `spam_action` (String) Action to take when a message is flagged as spam. Options are disabled
-- `state` (String) Current verification status of the domain
-- `subaccount_id` (String) The subaccount ID the domain belongs to. This field is only present if the domain is associated with a subaccount
-- `tracking_host` (String) Custom tracking host for the domain used for tracking opens and clicks if configured
-- `type` (String) Classification of the domain. Possible values are custom or sandbox
-- `use_automatic_sender_security` (Boolean) If true Mailgun manages DKIM key generation and DNS record configuration automatically
-- `web_prefix` (String) Subdomain prefix used for open and click tracking
-- `web_scheme` (String) Protocol scheme used for tracking
-- `wildcard` (Boolean) Indicates if the domain is a wildcard domain and can receive emails for any subdomain
+- `created_at` (String) Time the domain was created.
+- `disabled` (Attributes) Information about domain being disabled. (see [below for nested schema](#nestedatt--domain--disabled))
+- `id` (String) Domain ID.
+- `is_disabled` (Boolean) Whether the domain is disabled.
+- `name` (String) Domain name.
+- `require_tls` (Boolean) Whether TLS is required.
+- `skip_verification` (Boolean) Whether to skip verification.
+- `smtp_login` (String) SMTP login username.
+- `smtp_password` (String, Sensitive) SMTP password.
+- `spam_action` (String) Spam action setting.
+- `state` (String) Domain state.
+- `tracking_host` (String) Tracking host.
+- `type` (String) Domain type.
+- `use_automatic_sender_security` (Boolean) Whether automatic sender security is enabled.
+- `web_prefix` (String) Web prefix for tracking.
+- `web_scheme` (String) Web scheme (http or https).
+- `wildcard` (Boolean) Whether wildcard is enabled.
 
 <a id="nestedatt--domain--disabled"></a>
 ### Nested Schema for `domain.disabled`
 
 Read-Only:
 
-- `code` (String) Code indicating the reason for the domain being disabled
-- `note` (String) Additional information about why the domain was disabled
-- `permanently` (Boolean) Indicates whether the domain is permanently disabled
-- `reason` (String) Additional information about why the domain was disabled
-- `until` (String) Timestamp in RFC1123 format indicating when the domain will be re-enabled if the disablement is temporary
+- `code` (String) Disable code.
+- `note` (String) Disable note.
+- `permanently` (Boolean) Whether disabled permanently.
+- `reason` (String) Disable reason.
+- `until` (String) Disabled until timestamp.
 
 
 
@@ -108,13 +86,13 @@ Read-Only:
 
 Read-Only:
 
-- `cached` (List of String) List of Mailguns cached values for the DNS record
-- `is_active` (Boolean) Indicates whether the DNS record is currently active
-- `name` (String) Name of the DNS record if applicable
-- `priority` (String) Priority value for MX DNS records
-- `record_type` (String) Type of DNS record such as MX TXT or CNAME
-- `valid` (String) Indicates whether the DNS record is valid
-- `value` (String) Expected value of the DNS record
+- `cached` (List of String) Cached DNS values.
+- `is_active` (Boolean) Whether the DNS record is active.
+- `name` (String) DNS record name.
+- `priority` (String) DNS record priority.
+- `record_type` (String) DNS record type.
+- `valid` (String) Whether the DNS record is valid.
+- `value` (String) DNS record value.
 
 
 <a id="nestedatt--sending_dns_records"></a>
@@ -122,10 +100,10 @@ Read-Only:
 
 Read-Only:
 
-- `cached` (List of String) List of Mailguns cached values for the DNS record
-- `is_active` (Boolean) Indicates whether the DNS record is currently active
-- `name` (String) Name of the DNS record if applicable
-- `priority` (String) Priority value for MX DNS records
-- `record_type` (String) Type of DNS record such as MX TXT or CNAME
-- `valid` (String) Indicates whether the DNS record is valid
-- `value` (String) Expected value of the DNS record
+- `cached` (List of String) Cached DNS values.
+- `is_active` (Boolean) Whether the DNS record is active.
+- `name` (String) DNS record name.
+- `priority` (String) DNS record priority.
+- `record_type` (String) DNS record type.
+- `valid` (String) Whether the DNS record is valid.
+- `value` (String) DNS record value.

@@ -3,12 +3,12 @@
 page_title: "mailgun_domains Data Source - mailgun"
 subcategory: ""
 description: |-
-  
+  Retrieves a list of all domains in your Mailgun account.
 ---
 
 # mailgun_domains (Data Source)
 
-
+Retrieves a list of all domains in your Mailgun account.
 
 
 
@@ -17,49 +17,49 @@ description: |-
 
 ### Optional
 
-- `authority` (String) To only get domains with a specific authority. If state is specified then only state filtering will be proceed
-- `include_subaccounts` (Boolean) Search on every domain that belongs to any subaccounts under this account. Default to false.
-- `limit` (Number) Max count of items. Max: 1000. Default: 100
-- `search` (String) Search domains by the given partial or complete name. Does not support wildcards
-- `skip` (Number) Get the list of items starting at the nth element. Default: 0
-- `sort` (String) Valid sort options are `name` which defaults to asc order, `name:asc`, or `name:desc`. If sorting is not specified domains are returned in reverse creation date order.
-- `state` (String) To only get domains with a specific state. Can be either active, unverified or disabled.
+- `authority` (String) Filter by authority.
+- `include_subaccounts` (Boolean) Whether to include subaccounts.
+- `limit` (Number) Maximum number of domains to return (default: 100).
+- `search` (String) Search query to filter domains.
+- `skip` (Number) Number of domains to skip.
+- `sort` (String) Sort order for results.
+- `state` (String) Filter by domain state.
 
 ### Read-Only
 
-- `items` (Attributes List) (see [below for nested schema](#nestedatt--items))
-- `total_count` (Number)
+- `items` (Attributes List) List of domains. (see [below for nested schema](#nestedatt--items))
+- `total_count` (Number) Total number of domains returned.
 
 <a id="nestedatt--items"></a>
 ### Nested Schema for `items`
 
 Read-Only:
 
-- `created_at` (String)
-- `disabled` (Attributes) (see [below for nested schema](#nestedatt--items--disabled))
-- `id` (String)
-- `is_disabled` (Boolean)
-- `name` (String)
-- `require_tls` (Boolean)
-- `skip_verification` (Boolean)
-- `smtp_login` (String)
-- `smtp_password` (String)
-- `spam_action` (String)
-- `state` (String)
-- `tracking_host` (String)
-- `type` (String)
-- `use_automatic_sender_security` (Boolean)
-- `web_prefix` (String)
-- `web_scheme` (String)
-- `wildcard` (Boolean)
+- `created_at` (String) Time the domain was created.
+- `disabled` (Attributes) Information about domain being disabled. (see [below for nested schema](#nestedatt--items--disabled))
+- `id` (String) Domain ID.
+- `is_disabled` (Boolean) Whether the domain is disabled.
+- `name` (String) Domain name.
+- `require_tls` (Boolean) Whether TLS is required.
+- `skip_verification` (Boolean) Whether to skip verification.
+- `smtp_login` (String) SMTP login username.
+- `smtp_password` (String, Sensitive) SMTP password.
+- `spam_action` (String) Spam action setting.
+- `state` (String) Domain state.
+- `tracking_host` (String) Tracking host.
+- `type` (String) Domain type.
+- `use_automatic_sender_security` (Boolean) Whether automatic sender security is enabled.
+- `web_prefix` (String) Web prefix for tracking.
+- `web_scheme` (String) Web scheme (http or https).
+- `wildcard` (Boolean) Whether wildcard is enabled.
 
 <a id="nestedatt--items--disabled"></a>
 ### Nested Schema for `items.disabled`
 
 Read-Only:
 
-- `code` (String)
-- `note` (String)
-- `permanently` (Boolean)
-- `reason` (String)
-- `until` (String)
+- `code` (String) Disable code.
+- `note` (String) Disable note.
+- `permanently` (Boolean) Whether disabled permanently.
+- `reason` (String) Disable reason.
+- `until` (String) Disabled until timestamp.
