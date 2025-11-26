@@ -13,7 +13,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
 
+	"github.com/dimoschi/terraform-provider-mailgun/internal/provider/api_keys"
 	"github.com/dimoschi/terraform-provider-mailgun/internal/provider/domains"
+	"github.com/dimoschi/terraform-provider-mailgun/internal/provider/smtp_credentials"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -135,8 +137,12 @@ func (p *mailgunProvider) Configure(ctx context.Context, req provider.ConfigureR
 // DataSources defines the data sources implemented in the provider.
 func (p *mailgunProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		domains.NewDomainDataSource,      // Single domain lookup by name
-		domains.NewDomainsListDataSource, // List all domains
+		domains.NewDomainDataSource,                       // Single domain lookup by name
+		domains.NewDomainsListDataSource,                  // List all domains
+		smtp_credentials.NewSmtpCredentialDataSource,      // Single SMTP credential lookup
+		smtp_credentials.NewSmtpCredentialsListDataSource, // List SMTP credentials for a domain
+		api_keys.NewApiKeyDataSource,                      // Single API key lookup
+		api_keys.NewApiKeysListDataSource,                 // List API keys
 	}
 }
 
@@ -144,10 +150,10 @@ func (p *mailgunProvider) DataSources(_ context.Context) []func() datasource.Dat
 func (p *mailgunProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		domains.NewDomainResource,
+		smtp_credentials.NewSmtpCredentialResource,
+		api_keys.NewApiKeyResource,
 		// TODO: Add other resources as they are implemented
 		// webhooks.NewWebhookResource,
-		// smtp_credentials.NewSmtpCredentialResource,
 		// routes.NewRouteResource,
-		// api_keys.NewApiKeyResource,
 	}
 }
