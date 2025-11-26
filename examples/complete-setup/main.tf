@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     mailgun = {
-      source = "dimoschi/mailgun"
+      source = "hackthebox/mailgun"
     }
   }
 }

@@ -16,8 +16,8 @@ Add the provider to your Terraform configuration:
 terraform {
   required_providers {
     mailgun = {
-      source  = "dimoschi/mailgun"
-      version = "~> 0.1"
+      source  = "hackthebox/mailgun"
+      version = "~> 0.2"
     }
   }
 }
@@ -138,8 +138,8 @@ A common use case is to create credentials and store them in HashiCorp Vault:
 terraform {
   required_providers {
     mailgun = {
-      source  = "dimoschi/mailgun"
-      version = "~> 0.1"
+      source  = "hackthebox/mailgun"
+      version = "~> 0.2"
     }
     vault = {
       source  = "hashicorp/vault"

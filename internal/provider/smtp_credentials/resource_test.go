@@ -11,8 +11,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
-	"github.com/dimoschi/terraform-provider-mailgun/internal/provider/smtp_credentials"
-	"github.com/dimoschi/terraform-provider-mailgun/internal/provider/test_helpers"
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/smtp_credentials"
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/test_helpers"
 )
 
 // Unit Tests - These tests don't require external API calls

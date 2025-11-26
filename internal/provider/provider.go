@@ -13,9 +13,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
 
-	"github.com/dimoschi/terraform-provider-mailgun/internal/provider/api_keys"
-	"github.com/dimoschi/terraform-provider-mailgun/internal/provider/domains"
-	"github.com/dimoschi/terraform-provider-mailgun/internal/provider/smtp_credentials"
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/api_keys"
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domains"
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/smtp_credentials"
 )
 
 // Ensure the implementation satisfies the expected interfaces.

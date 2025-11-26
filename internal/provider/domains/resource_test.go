@@ -15,8 +15,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/mailgun/mailgun-go/v5/mtypes"
 
-	"github.com/dimoschi/terraform-provider-mailgun/internal/provider/domains"
-	"github.com/dimoschi/terraform-provider-mailgun/internal/provider/test_helpers"
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domains"
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/test_helpers"
 )
 
 // Unit Tests - These tests don't require external API calls

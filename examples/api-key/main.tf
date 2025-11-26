@@ -6,7 +6,7 @@
 terraform {
   required_providers {
     mailgun = {
-      source = "dimoschi/mailgun"
+      source = "hackthebox/mailgun"
     }
     # Uncomment to use Vault integration
     # vault = {

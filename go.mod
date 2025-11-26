@@ -1,4 +1,4 @@
-module github.com/dimoschi/terraform-provider-mailgun
+module github.com/hackthebox/terraform-provider-mailgun
 
 go 1.24.10
 

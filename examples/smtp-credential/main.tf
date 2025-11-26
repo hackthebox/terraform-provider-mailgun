@@ -6,7 +6,7 @@
 terraform {
   required_providers {
     mailgun = {
-      source = "dimoschi/mailgun"
+      source = "hackthebox/mailgun"
     }
     random = {
       source  = "hashicorp/random"
