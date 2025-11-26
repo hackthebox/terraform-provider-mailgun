@@ -1,4 +1,11 @@
-## 0.2.1 (Unreleased)
+## 0.3.0 (Unreleased)
+
+FEATURES:
+
+* **New Resource:** `mailgun_route` - Manage email routing rules with expressions and actions
+* **New Data Source:** `mailgun_routes` - List all routes
+
+## 0.2.1
 
 DOCUMENTATION:
 
