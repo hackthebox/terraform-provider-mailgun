@@ -1,4 +1,4 @@
 [tools]
 go = "1.25.4"
 terraform = "1.13.2"
-golangci-lint = "latest"
+golangci-lint = "2.1.6"
