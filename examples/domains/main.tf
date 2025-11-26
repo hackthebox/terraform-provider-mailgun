@@ -20,13 +20,13 @@ resource "mailgun_domain" "example" {
 
 # Example 2: Create a domain with custom configuration
 resource "mailgun_domain" "advanced" {
-  name                         = var.advanced_domain_name
-  spam_action                  = "tag"
-  wildcard                     = true
+  name                          = var.advanced_domain_name
+  spam_action                   = "tag"
+  wildcard                      = true
   use_automatic_sender_security = true
-  force_dkim_authority         = true
-  dkim_key_size                = "2048"
-  web_scheme                   = "https"
+  force_dkim_authority          = true
+  dkim_key_size                 = "2048"
+  web_scheme                    = "https"
 }
 
 # Example 3: Data source to lookup a SINGLE domain by name
