@@ -30,7 +30,7 @@ func main() {
 
 	opts := providerserver.ServeOpts{
 		// Provider address updated to match the new module name
-		Address: "registry.terraform.io/dimoschi/mailgun",
+		Address: "registry.terraform.io/hackthebox/mailgun",
 		Debug:   debug,
 	}
 
