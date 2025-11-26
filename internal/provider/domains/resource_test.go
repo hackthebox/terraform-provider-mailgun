@@ -4,7 +4,6 @@
 package domains_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -23,7 +22,7 @@ import (
 // Unit Tests - These tests don't require external API calls
 
 func TestDomainModel_AttributeTypes(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	domainValue := domains.DomainValue{}
 	attrTypes := domainValue.AttributeTypes(ctx)
 
@@ -64,7 +63,7 @@ func TestDomainModel_AttributeTypes(t *testing.T) {
 }
 
 func TestDomainValue_ToObjectValue(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	disabledObj := types.ObjectNull(map[string]attr.Type{
 		"code":        types.StringType,
@@ -117,7 +116,7 @@ func TestDomainValue_ToObjectValue(t *testing.T) {
 }
 
 func TestNewDomainValueMust(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	disabledObj := types.ObjectNull(map[string]attr.Type{
 		"code":        types.StringType,
@@ -191,7 +190,7 @@ func TestNewDomainValueMust(t *testing.T) {
 }
 
 func TestDisabledValue_ToObjectValue(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	disabledValue := domains.DisabledValue{
 		Code:        types.StringValue("503"),
@@ -217,7 +216,7 @@ func TestDisabledValue_ToObjectValue(t *testing.T) {
 }
 
 func TestNewDisabledValueNull(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	disabledValue := domains.NewDisabledValueNull()
 
@@ -250,7 +249,7 @@ func TestNewDisabledValueNull(t *testing.T) {
 }
 
 func TestReceivingDnsRecordsValue_ToObjectValue(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cachedList, _ := types.ListValueFrom(ctx, types.StringType, []string{"8.8.8.8", "8.8.4.4"})
 
@@ -286,7 +285,7 @@ func TestReceivingDnsRecordsValue_ToObjectValue(t *testing.T) {
 }
 
 func TestSendingDnsRecordsValue_ToObjectValue(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	cachedList, _ := types.ListValueFrom(ctx, types.StringType, []string{})
 
