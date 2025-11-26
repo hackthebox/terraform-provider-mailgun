@@ -208,4 +208,4 @@ terraform destroy -target=mailgun_domain.example
 ## Resources
 
 - [Mailgun API Documentation](https://documentation.mailgun.com/en/latest/api_reference.html)
-- [Terraform Mailgun Provider Registry](https://registry.terraform.io/providers/dimoschi/mailgun/latest)
+- [Terraform Mailgun Provider Registry](https://registry.terraform.io/providers/hackthebox/mailgun/latest)
