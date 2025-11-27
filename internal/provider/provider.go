@@ -17,6 +17,7 @@ import (
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domains"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/routes"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/smtp_credentials"
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/webhooks"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -145,6 +146,7 @@ func (p *mailgunProvider) DataSources(_ context.Context) []func() datasource.Dat
 		api_keys.NewApiKeyDataSource,                      // Single API key lookup
 		api_keys.NewApiKeysListDataSource,                 // List API keys
 		routes.NewRoutesDataSource,                        // List routes
+		webhooks.NewWebhooksDataSource,                    // List webhooks for a domain
 	}
 }
 
@@ -155,5 +157,6 @@ func (p *mailgunProvider) Resources(_ context.Context) []func() resource.Resourc
 		smtp_credentials.NewSmtpCredentialResource,
 		api_keys.NewApiKeyResource,
 		routes.NewRouteResource,
+		webhooks.NewWebhookResource,
 	}
 }
