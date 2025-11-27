@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
 
-	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/api_keys"
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domain_sending_keys"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domains"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/routes"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/smtp_credentials"
@@ -139,14 +139,13 @@ func (p *mailgunProvider) Configure(ctx context.Context, req provider.ConfigureR
 // DataSources defines the data sources implemented in the provider.
 func (p *mailgunProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		domains.NewDomainDataSource,                       // Single domain lookup by name
-		domains.NewDomainsListDataSource,                  // List all domains
-		smtp_credentials.NewSmtpCredentialDataSource,      // Single SMTP credential lookup
-		smtp_credentials.NewSmtpCredentialsListDataSource, // List SMTP credentials for a domain
-		api_keys.NewApiKeyDataSource,                      // Single API key lookup
-		api_keys.NewApiKeysListDataSource,                 // List API keys
-		routes.NewRoutesDataSource,                        // List routes
-		webhooks.NewWebhooksDataSource,                    // List webhooks for a domain
+		domains.NewDomainDataSource,                        // Single domain lookup by name
+		domains.NewDomainsListDataSource,                   // List all domains
+		smtp_credentials.NewSmtpCredentialDataSource,       // Single SMTP credential lookup
+		smtp_credentials.NewSmtpCredentialsListDataSource,  // List SMTP credentials for a domain
+		domain_sending_keys.NewDomainSendingKeysDataSource, // List domain sending keys
+		routes.NewRoutesDataSource,                         // List routes
+		webhooks.NewWebhooksDataSource,                     // List webhooks for a domain
 	}
 }
 
@@ -155,7 +154,7 @@ func (p *mailgunProvider) Resources(_ context.Context) []func() resource.Resourc
 	return []func() resource.Resource{
 		domains.NewDomainResource,
 		smtp_credentials.NewSmtpCredentialResource,
-		api_keys.NewApiKeyResource,
+		domain_sending_keys.NewDomainSendingKeyResource,
 		routes.NewRouteResource,
 		webhooks.NewWebhookResource,
 	}

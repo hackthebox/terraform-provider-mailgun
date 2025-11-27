@@ -9,6 +9,8 @@ description: |-
 
 {{ .Description | trimspace }}
 
+~> **Important:** The API key secret is only available immediately after creation and cannot be retrieved later. Store the secret securely (e.g., in HashiCorp Vault) as soon as the resource is created.
+
 {{ if .HasExample -}}
 ## Example Usage
 
@@ -26,6 +28,8 @@ description: |-
 Import is supported using the following syntax:
 
 {{codefile "shell" .ImportFile }}
+
+~> **Note:** The secret cannot be retrieved when importing an existing key. If you need the secret, create a new key instead.
 {{- end }}
 
 {{- if .HasImportIDConfig }}
