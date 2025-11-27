@@ -4,11 +4,13 @@
 package domains
 
 import (
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -28,6 +30,9 @@ func DomainResourceSchema() rschema.Schema {
 				Description: "Spam filter action for new domain. Options: 'disabled', 'tag', or 'delete'.",
 				Optional:    true,
 				Computed:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("disabled", "tag", "delete"),
+				},
 			},
 			"wildcard": rschema.BoolAttribute{
 				Description: "Determines whether the domain will accept email for sub-domains.",
@@ -43,6 +48,9 @@ func DomainResourceSchema() rschema.Schema {
 				Description: "DKIM key size (1024 or 2048).",
 				Optional:    true,
 				Computed:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("1024", "2048"),
+				},
 			},
 			"ips": rschema.StringAttribute{
 				Description: "Comma-separated list of IPs to be assigned to this domain.",
@@ -56,6 +64,9 @@ func DomainResourceSchema() rschema.Schema {
 				Description: "Web scheme for tracking links (http or https).",
 				Optional:    true,
 				Computed:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("http", "https"),
+				},
 			},
 			"web_prefix": rschema.StringAttribute{
 				Description: "Web prefix for tracking links.",

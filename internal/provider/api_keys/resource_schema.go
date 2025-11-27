@@ -4,12 +4,15 @@
 package api_keys
 
 import (
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
 // ApiKeyResourceSchema returns the schema for the API key resource
@@ -30,6 +33,9 @@ func ApiKeyResourceSchema() rschema.Schema {
 				Required: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.OneOf("admin", "sending", "developer", "basic", "support"),
 				},
 			},
 			"description": rschema.StringAttribute{
@@ -57,12 +63,18 @@ func ApiKeyResourceSchema() rschema.Schema {
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.String{
+					stringvalidator.OneOf("domain", "user", "web"),
+				},
 			},
 			"expiration": rschema.Int64Attribute{
 				Description: "The key's lifetime in seconds. Set to 0 for no expiration. Web keys have a maximum lifetime of 1 day.",
 				Optional:    true,
 				Computed:    true,
 				Default:     int64default.StaticInt64(0),
+				Validators: []validator.Int64{
+					int64validator.AtLeast(0),
+				},
 			},
 			"secret": rschema.StringAttribute{
 				Description: "The API key secret. This is only available immediately after creation and cannot be retrieved later. " +
