@@ -18,6 +18,13 @@ import (
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/test_helpers"
 )
 
+// TestMain runs cleanup after all tests complete (even on failure)
+func TestMain(m *testing.M) {
+	code := m.Run()
+	test_helpers.CleanupTestDomains()
+	os.Exit(code)
+}
+
 // Unit Tests - These tests don't require external API calls
 
 func TestDomainModel_HasExpectedFields(t *testing.T) {

@@ -15,6 +15,13 @@ import (
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/test_helpers"
 )
 
+// TestMain runs cleanup after all tests complete (even on failure)
+func TestMain(m *testing.M) {
+	code := m.Run()
+	test_helpers.CleanupTestRoutes()
+	os.Exit(code)
+}
+
 // Unit Tests - These tests don't require external API calls
 
 func TestRouteResourceSchema_HasRequiredFields(t *testing.T) {
