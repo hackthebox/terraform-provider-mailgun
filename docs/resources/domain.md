@@ -63,19 +63,19 @@ resource "mailgun_domain" "advanced" {
 ### Optional
 
 - `dkim_host_name` (String) DKIM host name.
-- `dkim_key_size` (String) DKIM key size (1024 or 2048).
+- `dkim_key_size` (String) DKIM key size (1024 or 2048). Changing this forces recreation.
 - `dkim_selector` (String) DKIM selector (custom CNAME for DKIM).
 - `encrypt_incoming_message` (Boolean) Whether to encrypt incoming messages.
-- `force_dkim_authority` (Boolean) If set to true, the domain will be the DKIM authority for itself even if the root domain is registered on the same mailgun account.
+- `force_dkim_authority` (Boolean) If set to true, the domain will be the DKIM authority for itself even if the root domain is registered on the same mailgun account. Changing this forces recreation.
 - `force_root_dkim_host` (Boolean) Force using root domain for DKIM.
 - `ips` (String) Comma-separated list of IPs to be assigned to this domain.
 - `pool_id` (String) The id of the IP Pool that you wish to assign to the domain.
 - `smtp_password` (String, Sensitive) Password for SMTP authentication.
-- `spam_action` (String) Spam filter action for new domain. Options: 'disabled', 'tag', or 'delete'.
+- `spam_action` (String) Spam filter action for new domain. Options: 'disabled', 'tag', or 'delete'. Changing this forces recreation.
 - `use_automatic_sender_security` (Boolean) Whether to use automatic sender security (SPF/DKIM/DMARC).
 - `web_prefix` (String) Web prefix for tracking links.
 - `web_scheme` (String) Web scheme for tracking links (http or https).
-- `wildcard` (Boolean) Determines whether the domain will accept email for sub-domains.
+- `wildcard` (Boolean) Determines whether the domain will accept email for sub-domains. Changing this forces recreation.
 
 ### Read-Only
 

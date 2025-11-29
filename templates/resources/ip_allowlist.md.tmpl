@@ -9,6 +9,8 @@ description: |-
 
 {{ .Description | trimspace }}
 
+~> **Warning:** When IP allowlisting is enabled, only requests from allowlisted IPs can use your API keys and SMTP credentials. Ensure you add your current IP before enabling this feature to avoid being locked out.
+
 {{ if .HasExample -}}
 ## Example Usage
 

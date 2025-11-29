@@ -9,6 +9,28 @@ description: |-
 
 {{ .Description | trimspace }}
 
+## Attribute Behavior
+
+### Updatable Attributes (in-place)
+
+The following attributes can be updated without recreating the domain:
+
+- `web_scheme` - Web scheme for tracking links
+- `web_prefix` - Web prefix for tracking links
+- `use_automatic_sender_security` - Automatic sender security setting
+
+### Attributes Requiring Recreation
+
+Changing any of the following attributes will **destroy and recreate** the domain:
+
+- `name` - Domain name
+- `spam_action` - Spam filter action
+- `wildcard` - Wildcard subdomain setting
+- `force_dkim_authority` - DKIM authority setting
+- `dkim_key_size` - DKIM key size
+
+~> **Note:** Some attributes like `dkim_host_name`, `dkim_selector`, `force_root_dkim_host`, `encrypt_incoming_message`, `ips`, and `pool_id` are set at creation time only and are not currently supported for updates by the Mailgun SDK.
+
 {{ if .HasExample -}}
 ## Example Usage
 
