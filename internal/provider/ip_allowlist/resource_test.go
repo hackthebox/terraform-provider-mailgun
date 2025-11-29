@@ -84,6 +84,9 @@ func TestAccIPAllowlistResource(t *testing.T) {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
 	}
 
+	// Setup: Add test runner's IP to allowlist (removed automatically via t.Cleanup)
+	test_helpers.SetupIPAllowlistForTests(t)
+
 	// Use a test IP address that won't affect real access
 	// Using documentation range (RFC 5737)
 	testIP := fmt.Sprintf("192.0.2.%d", test_helpers.RandomInt()%256)
@@ -127,6 +130,9 @@ func TestAccIPAllowlistResource_CIDR(t *testing.T) {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
 	}
 
+	// Setup: Add test runner's IP to allowlist (removed automatically via t.Cleanup)
+	test_helpers.SetupIPAllowlistForTests(t)
+
 	// Use documentation range CIDR (RFC 5737)
 	testCIDR := "198.51.100.0/24"
 	description := fmt.Sprintf("test-cidr-%s", test_helpers.RandomString(8))
@@ -151,6 +157,9 @@ func TestAccIPAllowlistDataSource(t *testing.T) {
 	if os.Getenv("MAILGUN_API_KEY") == "" {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
 	}
+
+	// Setup: Add test runner's IP to allowlist (removed automatically via t.Cleanup)
+	test_helpers.SetupIPAllowlistForTests(t)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
