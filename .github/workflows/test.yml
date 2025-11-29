@@ -81,5 +81,6 @@ jobs:
       - run: go mod download
       - env:
           TF_ACC: "1"
-        run: go test -v -cover ./internal/provider/
+          MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
+        run: go test -v -cover ./...
         timeout-minutes: 10
