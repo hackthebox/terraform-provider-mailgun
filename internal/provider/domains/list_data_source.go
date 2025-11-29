@@ -113,15 +113,14 @@ func (d *ListDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 
 	// Convert domains to Terraform model
 	for _, domain := range domains {
-		// Create disabled object with null values
-		disabledObj := NewDisabledValueNull()
-
-		// Convert disabled object to ObjectValue
-		disabledObjValue, diags := disabledObj.ToObjectValue(ctx)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+		// Create null disabled object (disabled details not available in list response)
+		disabledObjValue := types.ObjectNull(map[string]attr.Type{
+			"code":        types.StringType,
+			"note":        types.StringType,
+			"permanently": types.BoolType,
+			"reason":      types.StringType,
+			"until":       types.StringType,
+		})
 
 		// Format created at time
 		createdAt := domain.CreatedAt.String()

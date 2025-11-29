@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -21,315 +20,90 @@ import (
 
 // Unit Tests - These tests don't require external API calls
 
-func TestDomainModel_AttributeTypes(t *testing.T) {
+func TestDomainModel_HasExpectedFields(t *testing.T) {
+	// Verify DomainModel has expected fields by creating one
+	model := domains.DomainModel{
+		// Required/Optional input attributes
+		Name:                       types.StringValue("test.example.com"),
+		SmtpPassword:               types.StringNull(),
+		SpamAction:                 types.StringValue("disabled"),
+		Wildcard:                   types.BoolValue(false),
+		ForceDkimAuthority:         types.BoolNull(),
+		DkimKeySize:                types.StringNull(),
+		Ips:                        types.StringNull(),
+		PoolId:                     types.StringNull(),
+		WebScheme:                  types.StringValue("https"),
+		WebPrefix:                  types.StringValue("email"),
+		UseAutomaticSenderSecurity: types.BoolValue(false),
+		DkimSelector:               types.StringNull(),
+		DkimHostName:               types.StringNull(),
+		ForceRootDkimHost:          types.BoolNull(),
+		EncryptIncomingMessage:     types.BoolNull(),
+
+		// Computed attributes (flat, not nested)
+		Id:               types.StringValue("domain-123"),
+		CreatedAt:        types.StringValue("2025-01-15T10:00:00Z"),
+		State:            types.StringValue("active"),
+		SmtpLogin:        types.StringValue("postmaster@test.example.com"),
+		IsDisabled:       types.BoolValue(false),
+		RequireTls:       types.BoolValue(true),
+		SkipVerification: types.BoolValue(false),
+		DomainType:       types.StringValue("custom"),
+		TrackingHost:     types.StringValue("track.example.com"),
+	}
+
+	// Verify values are set correctly
+	if model.Name.ValueString() != "test.example.com" {
+		t.Errorf("Expected name 'test.example.com', got '%s'", model.Name.ValueString())
+	}
+	if model.Id.ValueString() != "domain-123" {
+		t.Errorf("Expected id 'domain-123', got '%s'", model.Id.ValueString())
+	}
+	if model.State.ValueString() != "active" {
+		t.Errorf("Expected state 'active', got '%s'", model.State.ValueString())
+	}
+}
+
+func TestReceivingDnsRecordsValue_AttributeTypes(t *testing.T) {
 	ctx := t.Context()
-	domainValue := domains.DomainValue{}
-	attrTypes := domainValue.AttributeTypes(ctx)
+
+	recordValue := domains.ReceivingDnsRecordsValue{}
+	attrTypes := recordValue.AttributeTypes(ctx)
 
 	// Verify all expected attributes are present
 	expectedAttrs := []string{
-		"created_at", "disabled", "id", "is_disabled", "name",
-		"require_tls", "skip_verification", "smtp_login", "smtp_password",
-		"spam_action", "state", "tracking_host", "type",
-		"use_automatic_sender_security", "web_prefix", "web_scheme", "wildcard",
+		"cached", "is_active", "name", "priority", "record_type", "valid", "value",
 	}
 
 	for _, attrName := range expectedAttrs {
 		if _, ok := attrTypes[attrName]; !ok {
-			t.Errorf("Expected attribute %s not found in DomainValue AttributeTypes", attrName)
-		}
-	}
-
-	// Verify correct types for some key attributes
-	if attrTypes["name"] != types.StringType {
-		t.Errorf("Expected name to be StringType, got %T", attrTypes["name"])
-	}
-	if attrTypes["wildcard"] != types.BoolType {
-		t.Errorf("Expected wildcard to be BoolType, got %T", attrTypes["wildcard"])
-	}
-
-	// Verify disabled is ObjectType with correct nested attributes
-	disabledType, ok := attrTypes["disabled"].(types.ObjectType)
-	if !ok {
-		t.Fatalf("Expected disabled to be ObjectType, got %T", attrTypes["disabled"])
-	}
-
-	expectedDisabledAttrs := []string{"code", "note", "permanently", "reason", "until"}
-	for _, attrName := range expectedDisabledAttrs {
-		if _, ok := disabledType.AttrTypes[attrName]; !ok {
-			t.Errorf("Expected disabled.%s not found", attrName)
+			t.Errorf("Expected attribute %s not found in ReceivingDnsRecordsValue AttributeTypes", attrName)
 		}
 	}
 }
 
-func TestDomainValue_ToObjectValue(t *testing.T) {
+func TestSendingDnsRecordsValue_AttributeTypes(t *testing.T) {
 	ctx := t.Context()
 
-	disabledObj := types.ObjectNull(map[string]attr.Type{
-		"code":        types.StringType,
-		"note":        types.StringType,
-		"permanently": types.BoolType,
-		"reason":      types.StringType,
-		"until":       types.StringType,
-	})
+	recordValue := domains.SendingDnsRecordsValue{}
+	attrTypes := recordValue.AttributeTypes(ctx)
 
-	domainValue := domains.DomainValue{
-		CreatedAt:                  types.StringValue("2025-01-15T10:00:00Z"),
-		Disabled:                   disabledObj,
-		Id:                         types.StringValue("domain-123"),
-		IsDisabled:                 types.BoolValue(false),
-		Name:                       types.StringValue("test.example.com"),
-		RequireTls:                 types.BoolValue(true),
-		SkipVerification:           types.BoolValue(false),
-		SmtpLogin:                  types.StringValue("postmaster@test.example.com"),
-		SmtpPassword:               types.StringValue("secret"),
-		SpamAction:                 types.StringValue("disabled"),
-		State:                      types.StringValue("active"),
-		TrackingHost:               types.StringValue("track.example.com"),
-		DomainType:                 types.StringValue("mailgun"),
-		UseAutomaticSenderSecurity: types.BoolValue(true),
-		WebPrefix:                  types.StringValue("email"),
-		WebScheme:                  types.StringValue("https"),
-		Wildcard:                   types.BoolValue(false),
+	// Verify all expected attributes are present
+	expectedAttrs := []string{
+		"cached", "is_active", "name", "priority", "record_type", "valid", "value",
 	}
 
-	objValue, diags := domainValue.ToObjectValue(ctx)
-	if diags.HasError() {
-		t.Fatalf("ToObjectValue returned errors: %v", diags)
+	for _, attrName := range expectedAttrs {
+		if _, ok := attrTypes[attrName]; !ok {
+			t.Errorf("Expected attribute %s not found in SendingDnsRecordsValue AttributeTypes", attrName)
+		}
 	}
-
-	if objValue.IsNull() {
-		t.Error("Expected non-null object value")
-	}
-
-	// Verify object has correct attributes
-	attrs := objValue.Attributes()
-	if len(attrs) != 17 {
-		t.Errorf("Expected 17 attributes, got %d", len(attrs))
-	}
-
-	// Verify a few key values
-	nameAttr := attrs["name"].(types.String)
-	if nameAttr.ValueString() != "test.example.com" {
-		t.Errorf("Expected name 'test.example.com', got '%s'", nameAttr.ValueString())
-	}
-}
-
-func TestNewDomainValueMust(t *testing.T) {
-	ctx := t.Context()
-
-	disabledObj := types.ObjectNull(map[string]attr.Type{
-		"code":        types.StringType,
-		"note":        types.StringType,
-		"permanently": types.BoolType,
-		"reason":      types.StringType,
-		"until":       types.StringType,
-	})
-
-	attrTypes := map[string]attr.Type{
-		"created_at":                    types.StringType,
-		"disabled":                      types.ObjectType{AttrTypes: map[string]attr.Type{}},
-		"id":                            types.StringType,
-		"is_disabled":                   types.BoolType,
-		"name":                          types.StringType,
-		"require_tls":                   types.BoolType,
-		"skip_verification":             types.BoolType,
-		"smtp_login":                    types.StringType,
-		"smtp_password":                 types.StringType,
-		"spam_action":                   types.StringType,
-		"state":                         types.StringType,
-		"tracking_host":                 types.StringType,
-		"type":                          types.StringType,
-		"use_automatic_sender_security": types.BoolType,
-		"web_prefix":                    types.StringType,
-		"web_scheme":                    types.StringType,
-		"wildcard":                      types.BoolType,
-	}
-
-	attributes := map[string]attr.Value{
-		"created_at":                    types.StringValue("2025-01-15T10:00:00Z"),
-		"disabled":                      disabledObj,
-		"id":                            types.StringValue("domain-123"),
-		"is_disabled":                   types.BoolValue(false),
-		"name":                          types.StringValue("test.example.com"),
-		"require_tls":                   types.BoolValue(true),
-		"skip_verification":             types.BoolValue(false),
-		"smtp_login":                    types.StringValue("postmaster@test.example.com"),
-		"smtp_password":                 types.StringValue("secret"),
-		"spam_action":                   types.StringValue("disabled"),
-		"state":                         types.StringValue("active"),
-		"tracking_host":                 types.StringValue("track.example.com"),
-		"type":                          types.StringValue("mailgun"),
-		"use_automatic_sender_security": types.BoolValue(true),
-		"web_prefix":                    types.StringValue("email"),
-		"web_scheme":                    types.StringValue("https"),
-		"wildcard":                      types.BoolValue(false),
-	}
-
-	domainValue := domains.NewDomainValueMust(attrTypes, attributes)
-
-	// Verify the created domain value has correct fields
-	if domainValue.Name.ValueString() != "test.example.com" {
-		t.Errorf("Expected name 'test.example.com', got '%s'", domainValue.Name.ValueString())
-	}
-	if domainValue.SpamAction.ValueString() != "disabled" {
-		t.Errorf("Expected spam_action 'disabled', got '%s'", domainValue.SpamAction.ValueString())
-	}
-	if !domainValue.RequireTls.ValueBool() {
-		t.Error("Expected require_tls to be true")
-	}
-
-	// Test that ToObjectValue works on the created value
-	objValue, diags := domainValue.ToObjectValue(ctx)
-	if diags.HasError() {
-		t.Fatalf("ToObjectValue on NewDomainValueMust result returned errors: %v", diags)
-	}
-	if objValue.IsNull() {
-		t.Error("Expected non-null object value from NewDomainValueMust result")
-	}
-}
-
-func TestDisabledValue_ToObjectValue(t *testing.T) {
-	ctx := t.Context()
-
-	disabledValue := domains.DisabledValue{
-		Code:        types.StringValue("503"),
-		Note:        types.StringValue("Domain temporarily disabled"),
-		Permanently: types.BoolValue(false),
-		Reason:      types.StringValue("billing"),
-		Until:       types.StringValue("2025-02-01T00:00:00Z"),
-	}
-
-	objValue, diags := disabledValue.ToObjectValue(ctx)
-	if diags.HasError() {
-		t.Fatalf("ToObjectValue returned errors: %v", diags)
-	}
-
-	if objValue.IsNull() {
-		t.Error("Expected non-null object value")
-	}
-
-	attrs := objValue.Attributes()
-	if len(attrs) != 5 {
-		t.Errorf("Expected 5 attributes, got %d", len(attrs))
-	}
-}
-
-func TestNewDisabledValueNull(t *testing.T) {
-	ctx := t.Context()
-
-	disabledValue := domains.NewDisabledValueNull()
-
-	// All fields should be null
-	if !disabledValue.Code.IsNull() {
-		t.Error("Expected Code to be null")
-	}
-	if !disabledValue.Note.IsNull() {
-		t.Error("Expected Note to be null")
-	}
-	if !disabledValue.Permanently.IsNull() {
-		t.Error("Expected Permanently to be null")
-	}
-	if !disabledValue.Reason.IsNull() {
-		t.Error("Expected Reason to be null")
-	}
-	if !disabledValue.Until.IsNull() {
-		t.Error("Expected Until to be null")
-	}
-
-	// Should convert to ObjectValue successfully
-	objValue, diags := disabledValue.ToObjectValue(ctx)
-	if diags.HasError() {
-		t.Fatalf("ToObjectValue on null DisabledValue returned errors: %v", diags)
-	}
-
-	if objValue.IsNull() {
-		t.Error("Expected non-null object value (with null attributes)")
-	}
-}
-
-func TestReceivingDnsRecordsValue_ToObjectValue(t *testing.T) {
-	ctx := t.Context()
-
-	cachedList, _ := types.ListValueFrom(ctx, types.StringType, []string{"8.8.8.8", "8.8.4.4"})
-
-	recordValue := domains.ReceivingDnsRecordsValue{
-		Cached:     cachedList,
-		IsActive:   types.BoolValue(true),
-		Name:       types.StringValue("mx.test.example.com"),
-		Priority:   types.StringValue("10"),
-		RecordType: types.StringValue("MX"),
-		Valid:      types.StringValue("valid"),
-		Value:      types.StringValue("mxa.mailgun.org"),
-	}
-
-	objValue, diags := recordValue.ToObjectValue(ctx)
-	if diags.HasError() {
-		t.Fatalf("ToObjectValue returned errors: %v", diags)
-	}
-
-	if objValue.IsNull() {
-		t.Error("Expected non-null object value")
-	}
-
-	attrs := objValue.Attributes()
-	if len(attrs) != 7 {
-		t.Errorf("Expected 7 attributes, got %d", len(attrs))
-	}
-
-	// Verify record type
-	recordTypeAttr := attrs["record_type"].(types.String)
-	if recordTypeAttr.ValueString() != "MX" {
-		t.Errorf("Expected record_type 'MX', got '%s'", recordTypeAttr.ValueString())
-	}
-}
-
-func TestSendingDnsRecordsValue_ToObjectValue(t *testing.T) {
-	ctx := t.Context()
-
-	cachedList, _ := types.ListValueFrom(ctx, types.StringType, []string{})
-
-	recordValue := domains.SendingDnsRecordsValue{
-		Cached:     cachedList,
-		IsActive:   types.BoolValue(false),
-		Name:       types.StringValue("test.example.com"),
-		Priority:   types.StringValue(""),
-		RecordType: types.StringValue("TXT"),
-		Valid:      types.StringValue("unknown"),
-		Value:      types.StringValue("v=spf1 include:mailgun.org ~all"),
-	}
-
-	objValue, diags := recordValue.ToObjectValue(ctx)
-	if diags.HasError() {
-		t.Fatalf("ToObjectValue returned errors: %v", diags)
-	}
-
-	if objValue.IsNull() {
-		t.Error("Expected non-null object value")
-	}
-
-	attrs := objValue.Attributes()
-	if len(attrs) != 7 {
-		t.Errorf("Expected 7 attributes, got %d", len(attrs))
-	}
-}
-
-func TestMapDomainResponseToModel_BasicFields(t *testing.T) {
-	// This test would ideally test the mapDomainResponseToModel function,
-	// but since it's not exported, we can only test it indirectly through
-	// integration tests. However, we can document what it should do:
-	//
-	// 1. Map SDK Domain response fields to DomainValue
-	// 2. Handle DNS records (receiving and sending)
-	// 3. Set computed-only fields to null when not in plan
-	// 4. Preserve plan-only fields from the input model
-	t.Skip("mapDomainResponseToModel is not exported, tested via acceptance tests")
 }
 
 func TestDomainResourceSchema_HasRequiredFields(t *testing.T) {
 	schema := domains.DomainResourceSchema()
 
-	// Verify key fields exist
+	// Verify key input fields exist
 	if schema.Attributes["name"] == nil {
 		t.Error("Schema missing 'name' attribute")
 	}
@@ -339,14 +113,38 @@ func TestDomainResourceSchema_HasRequiredFields(t *testing.T) {
 	if schema.Attributes["wildcard"] == nil {
 		t.Error("Schema missing 'wildcard' attribute")
 	}
-	if schema.Attributes["domain"] == nil {
-		t.Error("Schema missing 'domain' attribute")
+
+	// Verify computed fields are flat (not nested under 'domain')
+	if schema.Attributes["id"] == nil {
+		t.Error("Schema missing 'id' attribute")
 	}
+	if schema.Attributes["state"] == nil {
+		t.Error("Schema missing 'state' attribute")
+	}
+	if schema.Attributes["smtp_login"] == nil {
+		t.Error("Schema missing 'smtp_login' attribute")
+	}
+	if schema.Attributes["created_at"] == nil {
+		t.Error("Schema missing 'created_at' attribute")
+	}
+	if schema.Attributes["is_disabled"] == nil {
+		t.Error("Schema missing 'is_disabled' attribute")
+	}
+	if schema.Attributes["type"] == nil {
+		t.Error("Schema missing 'type' attribute")
+	}
+
+	// Verify DNS records attributes exist
 	if schema.Attributes["receiving_dns_records"] == nil {
 		t.Error("Schema missing 'receiving_dns_records' attribute")
 	}
 	if schema.Attributes["sending_dns_records"] == nil {
 		t.Error("Schema missing 'sending_dns_records' attribute")
+	}
+
+	// Verify there is NO nested 'domain' attribute (schema is flat)
+	if schema.Attributes["domain"] != nil {
+		t.Error("Schema should not have nested 'domain' attribute - schema should be flat")
 	}
 
 	// Verify description exists
@@ -402,14 +200,17 @@ func TestAccDomainResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccDomainResourceConfig(domainName, "disabled", false),
+				Config: testAccDomainResourceConfig(domainName, "disabled", false, "http"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("mailgun_domain.test", "name", domainName),
 					resource.TestCheckResourceAttr("mailgun_domain.test", "spam_action", "disabled"),
 					resource.TestCheckResourceAttr("mailgun_domain.test", "wildcard", "false"),
-					resource.TestCheckResourceAttrSet("mailgun_domain.test", "domain.id"),
-					resource.TestCheckResourceAttrSet("mailgun_domain.test", "domain.name"),
-					resource.TestCheckResourceAttrSet("mailgun_domain.test", "domain.state"),
+					resource.TestCheckResourceAttr("mailgun_domain.test", "web_scheme", "http"),
+					// Flat attributes (no nested 'domain.' prefix)
+					resource.TestCheckResourceAttrSet("mailgun_domain.test", "id"),
+					resource.TestCheckResourceAttrSet("mailgun_domain.test", "state"),
+					resource.TestCheckResourceAttrSet("mailgun_domain.test", "created_at"),
+					// Note: smtp_login may be empty on free/sandbox tier accounts
 				),
 			},
 			// ImportState testing
@@ -417,22 +218,20 @@ func TestAccDomainResource(t *testing.T) {
 				ResourceName:            "mailgun_domain.test",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"smtp_password", "dkim_key_size", "force_dkim_authority", "web_scheme", "web_prefix"},
-			},
-			// Update and Read testing
-			{
-				Config: testAccDomainResourceConfig(domainName, "tag", false),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("mailgun_domain.test", "name", domainName),
-					resource.TestCheckResourceAttr("mailgun_domain.test", "spam_action", "tag"),
-				),
+				ImportStateVerifyIgnore: []string{"smtp_password", "dkim_key_size", "force_dkim_authority"},
 			},
 			// Delete testing automatically occurs in TestCase
+			// Note: spam_action and wildcard require replacement, so we skip update testing for those
 		},
 	})
 }
 
 func TestAccDomainResource_Wildcard(t *testing.T) {
+	// Skip this test by default - most test accounts have a 1 domain limit
+	// To run this test, set MAILGUN_MULTI_DOMAIN=1
+	if os.Getenv("MAILGUN_MULTI_DOMAIN") == "" {
+		t.Skip("Skipping wildcard test - most Mailgun test accounts have a 1 domain limit. Set MAILGUN_MULTI_DOMAIN=1 to run this test.")
+	}
 	if os.Getenv("MAILGUN_API_KEY") == "" {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
 	}
@@ -445,7 +244,7 @@ func TestAccDomainResource_Wildcard(t *testing.T) {
 		CheckDestroy:             testAccCheckDomainResourceDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccDomainResourceConfig(domainName, "disabled", true),
+				Config: testAccDomainResourceConfig(domainName, "disabled", true, "http"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("mailgun_domain.test", "name", domainName),
 					resource.TestCheckResourceAttr("mailgun_domain.test", "wildcard", "true"),
@@ -455,7 +254,7 @@ func TestAccDomainResource_Wildcard(t *testing.T) {
 	})
 }
 
-func testAccDomainResourceConfig(domainName, spamAction string, wildcard bool) string {
+func testAccDomainResourceConfig(domainName, spamAction string, wildcard bool, webScheme string) string {
 	return fmt.Sprintf(`
 provider "mailgun" {
   api_key = "%s"
@@ -465,8 +264,9 @@ resource "mailgun_domain" "test" {
   name        = "%s"
   spam_action = "%s"
   wildcard    = %t
+  web_scheme  = "%s"
 }
-`, os.Getenv("MAILGUN_API_KEY"), domainName, spamAction, wildcard)
+`, os.Getenv("MAILGUN_API_KEY"), domainName, spamAction, wildcard, webScheme)
 }
 
 func testAccCheckDomainResourceDestroy(s *terraform.State) error {
