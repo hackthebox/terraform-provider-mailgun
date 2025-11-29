@@ -6,6 +6,7 @@ package domains
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -97,6 +98,10 @@ func (r *DomainResource) Create(ctx context.Context, req resource.CreateRequest,
 		opts.SpamAction = mtypes.SpamAction(plan.SpamAction.ValueString())
 	}
 
+	if !plan.Wildcard.IsNull() {
+		opts.Wildcard = plan.Wildcard.ValueBool()
+	}
+
 	if !plan.ForceDkimAuthority.IsNull() {
 		opts.ForceDKIMAuthority = plan.ForceDkimAuthority.ValueBool()
 	}
@@ -119,11 +124,26 @@ func (r *DomainResource) Create(ctx context.Context, req resource.CreateRequest,
 		opts.UseAutomaticSenderSecurity = plan.UseAutomaticSenderSecurity.ValueBool()
 	}
 
+	if !plan.WebScheme.IsNull() {
+		opts.WebScheme = plan.WebScheme.ValueString()
+	}
+
+	if !plan.Ips.IsNull() && plan.Ips.ValueString() != "" {
+		// IPs is a comma-separated string in Terraform, SDK expects []string
+		opts.IPs = strings.Split(plan.Ips.ValueString(), ",")
+	}
+
+	// Note: The following fields are supported by the API but not yet by the SDK:
+	// - WebPrefix, DkimHostName, DkimSelector, ForceRootDkimHost,
+	//   EncryptIncomingMessage, PoolId
+	// See: https://github.com/mailgun/mailgun-go TODO(DE-1599)
+
 	// Create context with timeout
 	createCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	// Create the domain via Mailgun API
+	// CreateDomain returns GetDomainResponse which includes all domain details
 	domainResp, err := r.client.CreateDomain(createCtx, domainName, opts)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -194,16 +214,14 @@ func (r *DomainResource) Read(ctx context.Context, req resource.ReadRequest, res
 // Update updates an existing resource.
 func (r *DomainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan DomainModel
+	var state DomainModel
 
-	// Read Terraform plan data
+	// Read Terraform plan and current state
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	// Note: Mailgun domains are largely immutable after creation.
-	// Most changes require domain recreation. For now, we'll just
-	// refresh the state by reading the domain.
 
 	// Validate that client is configured
 	if r.client == nil {
@@ -217,21 +235,54 @@ func (r *DomainResource) Update(ctx context.Context, req resource.UpdateRequest,
 
 	domainName := plan.Name.ValueString()
 
+	// Build update options for fields that can be updated via SDK
+	// Note: SDK only supports WebScheme, WebPrefix, RequireTLS, SkipVerification, UseAutomaticSenderSecurity
+	opts := &mailgun.UpdateDomainOptions{}
+	hasChanges := false
+
+	if !plan.WebScheme.Equal(state.WebScheme) && !plan.WebScheme.IsNull() {
+		opts.WebScheme = plan.WebScheme.ValueString()
+		hasChanges = true
+	}
+
+	if !plan.WebPrefix.Equal(state.WebPrefix) && !plan.WebPrefix.IsNull() {
+		opts.WebPrefix = plan.WebPrefix.ValueString()
+		hasChanges = true
+	}
+
+	if !plan.UseAutomaticSenderSecurity.Equal(state.UseAutomaticSenderSecurity) && !plan.UseAutomaticSenderSecurity.IsNull() {
+		val := plan.UseAutomaticSenderSecurity.ValueBool()
+		opts.UseAutomaticSenderSecurity = &val
+		hasChanges = true
+	}
+
 	// Create context with timeout
 	updateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	// Get the latest domain state
+	// Apply updates if there are changes
+	if hasChanges {
+		err := r.client.UpdateDomain(updateCtx, domainName, opts)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error Updating Domain",
+				fmt.Sprintf("Could not update domain %s: %s", domainName, err),
+			)
+			return
+		}
+	}
+
+	// Fetch the latest domain state
 	domainResp, err := r.client.GetDomain(updateCtx, domainName, nil)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error Updating Domain",
+			"Error Reading Domain After Update",
 			fmt.Sprintf("Could not read domain %s: %s", domainName, err),
 		)
 		return
 	}
 
-	// Map response to a plan model
+	// Map response to model
 	plan = mapDomainResponseToModel(domainResp, plan)
 
 	// Save updated state
@@ -326,38 +377,24 @@ func (r *DomainResource) ImportState(ctx context.Context, req resource.ImportSta
 func mapDomainResponseToModel(domainResp mtypes.GetDomainResponse, model DomainModel) DomainModel {
 	ctx := context.Background()
 
-	// Create disabled as null object (SDK doesn't parse this field)
-	disabledAttrTypes := map[string]attr.Type{
-		"code":        types.StringType,
-		"note":        types.StringType,
-		"permanently": types.BoolType,
-		"reason":      types.StringType,
-		"until":       types.StringType,
-	}
-
-	// Map domain fields from SDK response
-	domainValue := NewDomainValueMust(model.Domain.AttributeTypes(ctx), map[string]attr.Value{
-		"created_at":                    types.StringValue(domainResp.Domain.CreatedAt.String()),
-		"disabled":                      types.ObjectNull(disabledAttrTypes),
-		"id":                            types.StringValue(domainResp.Domain.ID),
-		"is_disabled":                   types.BoolValue(domainResp.Domain.IsDisabled),
-		"name":                          types.StringValue(domainResp.Domain.Name),
-		"require_tls":                   types.BoolValue(domainResp.Domain.RequireTLS),
-		"skip_verification":             types.BoolValue(domainResp.Domain.SkipVerification),
-		"smtp_login":                    types.StringValue(domainResp.Domain.SMTPLogin),
-		"smtp_password":                 types.StringValue(domainResp.Domain.SMTPPassword),
-		"spam_action":                   types.StringValue(string(domainResp.Domain.SpamAction)),
-		"state":                         types.StringValue(domainResp.Domain.State),
-		"tracking_host":                 types.StringValue(domainResp.Domain.TrackingHost),
-		"type":                          types.StringValue(domainResp.Domain.Type),
-		"use_automatic_sender_security": types.BoolValue(domainResp.Domain.UseAutomaticSenderSecurity),
-		"web_prefix":                    types.StringValue(domainResp.Domain.WebPrefix),
-		"web_scheme":                    types.StringValue(domainResp.Domain.WebScheme),
-		"wildcard":                      types.BoolValue(domainResp.Domain.Wildcard),
-	})
-
-	model.Domain = domainValue
+	// Set computed attributes from domainResp.Domain
+	// Use domain name as Terraform resource ID (Mailgun API uses domain names for lookups)
+	model.Id = types.StringValue(domainResp.Domain.Name)
 	model.Name = types.StringValue(domainResp.Domain.Name)
+	model.CreatedAt = types.StringValue(domainResp.Domain.CreatedAt.String())
+	model.State = types.StringValue(domainResp.Domain.State)
+	model.SmtpLogin = types.StringValue(domainResp.Domain.SMTPLogin)
+	model.IsDisabled = types.BoolValue(domainResp.Domain.IsDisabled)
+	model.RequireTls = types.BoolValue(domainResp.Domain.RequireTLS)
+	model.SkipVerification = types.BoolValue(domainResp.Domain.SkipVerification)
+	model.DomainType = types.StringValue(domainResp.Domain.Type)
+	model.TrackingHost = types.StringValue(domainResp.Domain.TrackingHost)
+
+	// Set Optional/Computed fields from response
+	model.SpamAction = types.StringValue(string(domainResp.Domain.SpamAction))
+	model.Wildcard = types.BoolValue(domainResp.Domain.Wildcard)
+	model.WebScheme = types.StringValue(domainResp.Domain.WebScheme)
+	model.WebPrefix = types.StringValue(domainResp.Domain.WebPrefix)
 	model.UseAutomaticSenderSecurity = types.BoolValue(domainResp.UseAutomaticSenderSecurity)
 
 	// Map DNS records from response
@@ -413,8 +450,7 @@ func mapDomainResponseToModel(domainResp mtypes.GetDomainResponse, model DomainM
 		model.SendingDnsRecords = types.ListNull(sendingDnsRecordsType)
 	}
 
-	// Set all other fields from plan or to null (SDK doesn't provide them in response)
-	// These are request-only fields that don't come back in the response
+	// Set request-only fields to null if unknown (not returned in response)
 	if model.DkimHostName.IsUnknown() {
 		model.DkimHostName = types.StringNull()
 	}
@@ -433,30 +469,14 @@ func mapDomainResponseToModel(domainResp mtypes.GetDomainResponse, model DomainM
 	if model.ForceRootDkimHost.IsUnknown() {
 		model.ForceRootDkimHost = types.BoolNull()
 	}
-	if model.Hextended.IsUnknown() {
-		model.Hextended = types.BoolNull()
-	}
-	if model.HwithDns.IsUnknown() {
-		model.HwithDns = types.BoolNull()
-	}
 	if model.Ips.IsUnknown() {
 		model.Ips = types.StringNull()
-	}
-	if model.Message.IsUnknown() {
-		model.Message = types.StringNull()
 	}
 	if model.PoolId.IsUnknown() {
 		model.PoolId = types.StringNull()
 	}
-	// DNS records already mapped above
 	if model.SmtpPassword.IsUnknown() {
 		model.SmtpPassword = types.StringNull()
-	}
-	if model.WebPrefix.IsUnknown() {
-		model.WebPrefix = types.StringNull()
-	}
-	if model.WebScheme.IsUnknown() {
-		model.WebScheme = types.StringNull()
 	}
 
 	return model
