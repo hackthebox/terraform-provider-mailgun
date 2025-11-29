@@ -60,6 +60,8 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
+      # Run sequentially to avoid race conditions with shared Mailgun API resources
+      max-parallel: 1
       matrix:
         # list whatever Terraform versions here you would like to support
         terraform:
@@ -82,5 +84,6 @@ jobs:
       - env:
           TF_ACC: "1"
           MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
-        run: go test -v -cover ./...
+        # -p 1 runs packages sequentially to avoid IP allowlist race conditions
+        run: go test -v -cover -p 1 ./...
         timeout-minutes: 10
