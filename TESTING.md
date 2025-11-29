@@ -77,3 +77,15 @@ make build
 # Full acceptance tests (requires MAILGUN_API_KEY env var)
 make testacc
 ```
+
+## IP Allowlist Tests
+
+The `mailgun_ip_allowlist` resource acceptance tests automatically manage the test runner's IP:
+
+1. **Before each test**: The test runner's public IP is detected and added to the Mailgun IP allowlist
+2. **During test**: Tests safely add/remove RFC 5737 documentation IPs (192.0.2.X)
+3. **After test**: The test runner's IP is automatically removed via `t.Cleanup()`
+
+This ensures tests work from any environment (local development, GitHub Actions, self-hosted runners) without manual setup.
+
+**Note**: If the test runner's IP is already in the allowlist (manually added), it will be left untouched and not removed after the test.

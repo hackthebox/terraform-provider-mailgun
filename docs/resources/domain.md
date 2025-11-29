@@ -9,6 +9,28 @@ description: |-
 
 Manages a Mailgun domain. Domains are used to send and receive email.
 
+## Attribute Behavior
+
+### Updatable Attributes (in-place)
+
+The following attributes can be updated without recreating the domain:
+
+- `web_scheme` - Web scheme for tracking links
+- `web_prefix` - Web prefix for tracking links
+- `use_automatic_sender_security` - Automatic sender security setting
+
+### Attributes Requiring Recreation
+
+Changing any of the following attributes will **destroy and recreate** the domain:
+
+- `name` - Domain name
+- `spam_action` - Spam filter action
+- `wildcard` - Wildcard subdomain setting
+- `force_dkim_authority` - DKIM authority setting
+- `dkim_key_size` - DKIM key size
+
+~> **Note:** Some attributes like `dkim_host_name`, `dkim_selector`, `force_root_dkim_host`, `encrypt_incoming_message`, `ips`, and `pool_id` are set at creation time only and are not currently supported for updates by the Mailgun SDK.
+
 ## Example Usage
 
 ```terraform
@@ -46,10 +68,7 @@ resource "mailgun_domain" "advanced" {
 - `encrypt_incoming_message` (Boolean) Whether to encrypt incoming messages.
 - `force_dkim_authority` (Boolean) If set to true, the domain will be the DKIM authority for itself even if the root domain is registered on the same mailgun account.
 - `force_root_dkim_host` (Boolean) Force using root domain for DKIM.
-- `hextended` (Boolean) Whether to use extended headers.
-- `hwith_dns` (Boolean) Whether to use DNS for headers.
 - `ips` (String) Comma-separated list of IPs to be assigned to this domain.
-- `message` (String) Custom message for domain creation.
 - `pool_id` (String) The id of the IP Pool that you wish to assign to the domain.
 - `smtp_password` (String, Sensitive) Password for SMTP authentication.
 - `spam_action` (String) Spam filter action for new domain. Options: 'disabled', 'tag', or 'delete'.
@@ -60,45 +79,17 @@ resource "mailgun_domain" "advanced" {
 
 ### Read-Only
 
-- `domain` (Attributes) Domain details returned from the API. (see [below for nested schema](#nestedatt--domain))
+- `created_at` (String) Timestamp indicating when the domain was created.
+- `id` (String) Unique identifier of the domain.
+- `is_disabled` (Boolean) Indicates whether the domain is currently disabled.
 - `receiving_dns_records` (Attributes List) DNS records for receiving email. (see [below for nested schema](#nestedatt--receiving_dns_records))
+- `require_tls` (Boolean) If true, Mailgun will only send messages over a TLS connection.
 - `sending_dns_records` (Attributes List) DNS records for sending email. (see [below for nested schema](#nestedatt--sending_dns_records))
-
-<a id="nestedatt--domain"></a>
-### Nested Schema for `domain`
-
-Read-Only:
-
-- `created_at` (String) Time the domain was created.
-- `disabled` (Attributes) Information about domain being disabled. (see [below for nested schema](#nestedatt--domain--disabled))
-- `id` (String) Domain ID.
-- `is_disabled` (Boolean) Whether the domain is disabled.
-- `name` (String) Domain name.
-- `require_tls` (Boolean) Whether TLS is required.
-- `skip_verification` (Boolean) Whether to skip verification.
-- `smtp_login` (String) SMTP login username.
-- `smtp_password` (String, Sensitive) SMTP password.
-- `spam_action` (String) Spam action setting.
-- `state` (String) Domain state.
-- `tracking_host` (String) Tracking host.
-- `type` (String) Domain type.
-- `use_automatic_sender_security` (Boolean) Whether automatic sender security is enabled.
-- `web_prefix` (String) Web prefix for tracking.
-- `web_scheme` (String) Web scheme (http or https).
-- `wildcard` (Boolean) Whether wildcard is enabled.
-
-<a id="nestedatt--domain--disabled"></a>
-### Nested Schema for `domain.disabled`
-
-Read-Only:
-
-- `code` (String) Disable code.
-- `note` (String) Disable note.
-- `permanently` (Boolean) Whether disabled permanently.
-- `reason` (String) Disable reason.
-- `until` (String) Disabled until timestamp.
-
-
+- `skip_verification` (Boolean) If true, Mailgun will not verify the certificate and hostname when setting up a TLS connection.
+- `smtp_login` (String) SMTP login username for the domain.
+- `state` (String) Current verification status of the domain (active, unverified, disabled).
+- `tracking_host` (String) Custom tracking host for the domain used for tracking opens and clicks.
+- `type` (String) Classification of the domain (custom or sandbox).
 
 <a id="nestedatt--receiving_dns_records"></a>
 ### Nested Schema for `receiving_dns_records`
