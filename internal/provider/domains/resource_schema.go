@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -19,6 +20,7 @@ func DomainResourceSchema() rschema.Schema {
 	return rschema.Schema{
 		Description: "Manages a Mailgun domain. Domains are used to send and receive email.",
 		Attributes: map[string]rschema.Attribute{
+			// Required/Optional input attributes
 			"name": rschema.StringAttribute{
 				Description: "The domain name to be used for sending and receiving email.",
 				Required:    true,
@@ -26,30 +28,47 @@ func DomainResourceSchema() rschema.Schema {
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
+			"smtp_password": rschema.StringAttribute{
+				Description: "Password for SMTP authentication.",
+				Optional:    true,
+				Sensitive:   true,
+			},
 			"spam_action": rschema.StringAttribute{
-				Description: "Spam filter action for new domain. Options: 'disabled', 'tag', or 'delete'.",
+				Description: "Spam filter action for new domain. Options: 'disabled', 'tag', or 'delete'. Changing this forces recreation.",
 				Optional:    true,
 				Computed:    true,
 				Validators: []validator.String{
 					stringvalidator.OneOf("disabled", "tag", "delete"),
 				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(), // SDK doesn't support updating spam_action
+				},
 			},
 			"wildcard": rschema.BoolAttribute{
-				Description: "Determines whether the domain will accept email for sub-domains.",
+				Description: "Determines whether the domain will accept email for sub-domains. Changing this forces recreation.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.RequiresReplace(), // SDK doesn't support updating wildcard
+				},
 			},
 			"force_dkim_authority": rschema.BoolAttribute{
-				Description: "If set to true, the domain will be the DKIM authority for itself even if the root domain is registered on the same mailgun account.",
+				Description: "If set to true, the domain will be the DKIM authority for itself even if the root domain is registered on the same mailgun account. Changing this forces recreation.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.RequiresReplace(), // SDK doesn't support updating force_dkim_authority
+				},
 			},
 			"dkim_key_size": rschema.StringAttribute{
-				Description: "DKIM key size (1024 or 2048).",
+				Description: "DKIM key size (1024 or 2048). Changing this forces recreation.",
 				Optional:    true,
 				Computed:    true,
 				Validators: []validator.String{
 					stringvalidator.OneOf("1024", "2048"),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(), // SDK doesn't support updating dkim_key_size
 				},
 			},
 			"ips": rschema.StringAttribute{
@@ -79,11 +98,6 @@ func DomainResourceSchema() rschema.Schema {
 				Computed:    true,
 				Default:     booldefault.StaticBool(false),
 			},
-			"smtp_password": rschema.StringAttribute{
-				Description: "Password for SMTP authentication.",
-				Optional:    true,
-				Sensitive:   true,
-			},
 			"dkim_selector": rschema.StringAttribute{
 				Description: "DKIM selector (custom CNAME for DKIM).",
 				Optional:    true,
@@ -100,20 +114,49 @@ func DomainResourceSchema() rschema.Schema {
 				Description: "Whether to encrypt incoming messages.",
 				Optional:    true,
 			},
-			"hextended": rschema.BoolAttribute{
-				Description: "Whether to use extended headers.",
-				Optional:    true,
-			},
-			"hwith_dns": rschema.BoolAttribute{
-				Description: "Whether to use DNS for headers.",
-				Optional:    true,
-			},
-			"message": rschema.StringAttribute{
-				Description: "Custom message for domain creation.",
-				Optional:    true,
-			},
+
 			// Computed attributes from API response
-			"domain": DomainNestedObject(),
+			"id": rschema.StringAttribute{
+				Description: "Unique identifier of the domain.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"created_at": rschema.StringAttribute{
+				Description: "Timestamp indicating when the domain was created.",
+				Computed:    true,
+			},
+			"state": rschema.StringAttribute{
+				Description: "Current verification status of the domain (active, unverified, disabled).",
+				Computed:    true,
+			},
+			"smtp_login": rschema.StringAttribute{
+				Description: "SMTP login username for the domain.",
+				Computed:    true,
+			},
+			"is_disabled": rschema.BoolAttribute{
+				Description: "Indicates whether the domain is currently disabled.",
+				Computed:    true,
+			},
+			"require_tls": rschema.BoolAttribute{
+				Description: "If true, Mailgun will only send messages over a TLS connection.",
+				Computed:    true,
+			},
+			"skip_verification": rschema.BoolAttribute{
+				Description: "If true, Mailgun will not verify the certificate and hostname when setting up a TLS connection.",
+				Computed:    true,
+			},
+			"type": rschema.StringAttribute{
+				Description: "Classification of the domain (custom or sandbox).",
+				Computed:    true,
+			},
+			"tracking_host": rschema.StringAttribute{
+				Description: "Custom tracking host for the domain used for tracking opens and clicks.",
+				Computed:    true,
+			},
+
+			// DNS records
 			"receiving_dns_records": rschema.ListNestedAttribute{
 				Description: "DNS records for receiving email.",
 				Computed:    true,
@@ -187,107 +230,6 @@ func DomainResourceSchema() rschema.Schema {
 						},
 					},
 				},
-			},
-		},
-	}
-}
-
-// DomainNestedObject returns the nested object schema for domain details
-func DomainNestedObject() rschema.SingleNestedAttribute {
-	return rschema.SingleNestedAttribute{
-		Description: "Domain details returned from the API.",
-		Computed:    true,
-		Attributes: map[string]rschema.Attribute{
-			"created_at": rschema.StringAttribute{
-				Description: "Time the domain was created.",
-				Computed:    true,
-			},
-			"disabled": rschema.SingleNestedAttribute{
-				Description: "Information about domain being disabled.",
-				Computed:    true,
-				Attributes: map[string]rschema.Attribute{
-					"code": rschema.StringAttribute{
-						Description: "Disable code.",
-						Computed:    true,
-					},
-					"note": rschema.StringAttribute{
-						Description: "Disable note.",
-						Computed:    true,
-					},
-					"permanently": rschema.BoolAttribute{
-						Description: "Whether disabled permanently.",
-						Computed:    true,
-					},
-					"reason": rschema.StringAttribute{
-						Description: "Disable reason.",
-						Computed:    true,
-					},
-					"until": rschema.StringAttribute{
-						Description: "Disabled until timestamp.",
-						Computed:    true,
-					},
-				},
-			},
-			"id": rschema.StringAttribute{
-				Description: "Domain ID.",
-				Computed:    true,
-			},
-			"is_disabled": rschema.BoolAttribute{
-				Description: "Whether the domain is disabled.",
-				Computed:    true,
-			},
-			"name": rschema.StringAttribute{
-				Description: "Domain name.",
-				Computed:    true,
-			},
-			"require_tls": rschema.BoolAttribute{
-				Description: "Whether TLS is required.",
-				Computed:    true,
-			},
-			"skip_verification": rschema.BoolAttribute{
-				Description: "Whether to skip verification.",
-				Computed:    true,
-			},
-			"smtp_login": rschema.StringAttribute{
-				Description: "SMTP login username.",
-				Computed:    true,
-			},
-			"smtp_password": rschema.StringAttribute{
-				Description: "SMTP password.",
-				Computed:    true,
-				Sensitive:   true,
-			},
-			"spam_action": rschema.StringAttribute{
-				Description: "Spam action setting.",
-				Computed:    true,
-			},
-			"state": rschema.StringAttribute{
-				Description: "Domain state.",
-				Computed:    true,
-			},
-			"tracking_host": rschema.StringAttribute{
-				Description: "Tracking host.",
-				Computed:    true,
-			},
-			"type": rschema.StringAttribute{
-				Description: "Domain type.",
-				Computed:    true,
-			},
-			"use_automatic_sender_security": rschema.BoolAttribute{
-				Description: "Whether automatic sender security is enabled.",
-				Computed:    true,
-			},
-			"web_prefix": rschema.StringAttribute{
-				Description: "Web prefix for tracking.",
-				Computed:    true,
-			},
-			"web_scheme": rschema.StringAttribute{
-				Description: "Web scheme (http or https).",
-				Computed:    true,
-			},
-			"wildcard": rschema.BoolAttribute{
-				Description: "Whether wildcard is enabled.",
-				Computed:    true,
 			},
 		},
 	}
