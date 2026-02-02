@@ -27,3 +27,8 @@ func RandomString(length int) string {
 	}
 	return string(b)
 }
+
+// RandomName generates a unique name with a given prefix for testing
+func RandomName(prefix string) string {
+	return fmt.Sprintf("%s-%d", prefix, RandomInt())
+}

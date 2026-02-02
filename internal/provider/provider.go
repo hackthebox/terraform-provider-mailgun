@@ -18,6 +18,7 @@ import (
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/ip_allowlist"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/routes"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/smtp_credentials"
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/templates"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/webhooks"
 )
 
@@ -148,6 +149,7 @@ func (p *mailgunProvider) DataSources(_ context.Context) []func() datasource.Dat
 		routes.NewRoutesDataSource,                         // List routes
 		webhooks.NewWebhooksDataSource,                     // List webhooks for a domain
 		ip_allowlist.NewIPAllowlistDataSource,              // List IP allowlist entries
+		templates.NewTemplatesDataSource,                   // List templates for a domain
 	}
 }
 
@@ -160,5 +162,6 @@ func (p *mailgunProvider) Resources(_ context.Context) []func() resource.Resourc
 		routes.NewRouteResource,
 		webhooks.NewWebhookResource,
 		ip_allowlist.NewIPAllowlistResource,
+		templates.NewTemplateResource,
 	}
 }
