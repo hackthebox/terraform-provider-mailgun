@@ -261,14 +261,26 @@ func (r *templateVersionResource) Delete(ctx context.Context, req resource.Delet
 
 	err := r.client.DeleteTemplateVersion(deleteCtx, domain, templateName, tag)
 	if err != nil {
+		errStr := err.Error()
 		// Ignore not found errors during delete
-		if !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "404") {
+		if strings.Contains(errStr, "not found") || strings.Contains(errStr, "404") {
+			return
+		}
+		// Provide a clearer error message for active version deletion
+		if strings.Contains(errStr, "deleting active version is not allowed") {
 			resp.Diagnostics.AddError(
-				"Error Deleting Mailgun Template Version",
-				fmt.Sprintf("Could not delete template version %s/%s/%s: %s", domain, templateName, tag, err.Error()),
+				"Cannot Delete Active Template Version",
+				fmt.Sprintf("Template version %s/%s/%s is currently active and cannot be deleted. "+
+					"To delete this version, first make another version active, or delete the parent template resource instead.",
+					domain, templateName, tag),
 			)
 			return
 		}
+		resp.Diagnostics.AddError(
+			"Error Deleting Mailgun Template Version",
+			fmt.Sprintf("Could not delete template version %s/%s/%s: %s", domain, templateName, tag, err.Error()),
+		)
+		return
 	}
 }
 

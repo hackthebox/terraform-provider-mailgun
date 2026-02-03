@@ -124,7 +124,7 @@ func TestAccTemplateVersionResource_Basic(t *testing.T) {
 	})
 }
 
-func TestAccTemplateVersionResource_Active(t *testing.T) {
+func TestAccTemplateVersionResource_ActiveAttribute(t *testing.T) {
 	if os.Getenv("MAILGUN_API_KEY") == "" {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
 	}
@@ -136,15 +136,20 @@ func TestAccTemplateVersionResource_Active(t *testing.T) {
 
 	templateName := test_helpers.RandomName("test-template-active")
 
+	// Test that the active attribute is correctly read from the API.
+	// We don't set active=true because that creates a version that can't be deleted
+	// (Mailgun doesn't allow deleting active versions, and there's no API to deactivate).
+	// The new version will have active=false since the template's initial version is active.
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
 		ProtoV6ProviderFactories: test_helpers.ProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckTemplateVersionDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccTemplateVersionResourceConfigActive(domainName, templateName),
+				Config: testAccTemplateVersionResourceConfigWithActive(domainName, templateName),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("mailgun_template_version.test", "active", "true"),
+					// New versions are not active by default (template's initial version is active)
+					resource.TestCheckResourceAttr("mailgun_template_version.test", "active", "false"),
 				),
 			},
 		},
@@ -189,6 +194,7 @@ resource "mailgun_template" "test" {
   domain      = "%s"
   name        = "%s"
   description = "Test template for version testing"
+  template    = "<html><body>Initial template content</body></html>"
 }
 
 resource "mailgun_template_version" "test" {
@@ -197,7 +203,7 @@ resource "mailgun_template_version" "test" {
   tag           = "%s"
   template      = "<html><body>Hello {{name}}!</body></html>"
   engine        = "handlebars"
-  comment       = "Initial version"
+  comment       = "Test version"
 }
 `, os.Getenv("MAILGUN_API_KEY"), domain, templateName, versionTag)
 }
@@ -212,6 +218,7 @@ resource "mailgun_template" "test" {
   domain      = "%s"
   name        = "%s"
   description = "Test template for version testing"
+  template    = "<html><body>Initial template content</body></html>"
 }
 
 resource "mailgun_template_version" "test" {
@@ -244,6 +251,31 @@ resource "mailgun_template_version" "test" {
   template      = "<html><body>Active version content</body></html>"
   engine        = "handlebars"
   active        = true
+}
+`, os.Getenv("MAILGUN_API_KEY"), domain, templateName)
+}
+
+// testAccTemplateVersionResourceConfigWithActive creates a template with a second version
+// to test the active attribute. The second version will be inactive (active=false).
+func testAccTemplateVersionResourceConfigWithActive(domain, templateName string) string {
+	return fmt.Sprintf(`
+provider "mailgun" {
+  api_key = "%s"
+}
+
+resource "mailgun_template" "test" {
+  domain      = "%s"
+  name        = "%s"
+  description = "Test template for active attribute testing"
+  template    = "<html><body>Initial version content</body></html>"
+}
+
+resource "mailgun_template_version" "test" {
+  domain        = mailgun_template.test.domain
+  template_name = mailgun_template.test.name
+  tag           = "v2"
+  template      = "<html><body>Second version content</body></html>"
+  engine        = "handlebars"
 }
 `, os.Getenv("MAILGUN_API_KEY"), domain, templateName)
 }

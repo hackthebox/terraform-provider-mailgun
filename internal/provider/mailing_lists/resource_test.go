@@ -156,10 +156,6 @@ func TestAccMailingListsDataSource(t *testing.T) {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
 	}
 
-	if os.Getenv("MAILGUN_TEST_DOMAIN") == "" {
-		t.Skip("MAILGUN_TEST_DOMAIN environment variable is not set")
-	}
-
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
 		ProtoV6ProviderFactories: test_helpers.ProtoV6ProviderFactories,

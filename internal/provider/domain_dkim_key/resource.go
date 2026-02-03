@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
@@ -86,27 +87,31 @@ func (r *domainDkimKeyResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 
-	// If active is explicitly set to false, deactivate the key
-	if !plan.Active.IsNull() && !plan.Active.ValueBool() {
-		deactivateCtx, cancelDeactivate := context.WithTimeout(ctx, 30*time.Second)
-		defer cancelDeactivate()
+	// Map to state first
+	mapDomainKeyToModel(&plan, domain, selector, domainKey)
 
-		if err := r.client.DeactivateDomainKey(deactivateCtx, domain, selector); err != nil {
+	// Set active state from API response (newly created keys are inactive by default)
+	plan.Active = types.BoolValue(domainKey.DNSRecord.Active)
+
+	// If user explicitly requested active = true, activate the key
+	var planActive types.Bool
+	diags = req.Plan.GetAttribute(ctx, path.Root("active"), &planActive)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if !planActive.IsNull() && planActive.ValueBool() {
+		activateCtx, cancelActivate := context.WithTimeout(ctx, 30*time.Second)
+		defer cancelActivate()
+
+		if err := r.client.ActivateDomainKey(activateCtx, domain, selector); err != nil {
 			resp.Diagnostics.AddError(
-				"Error Deactivating Domain DKIM Key",
-				fmt.Sprintf("Created DKIM key but could not deactivate: %s", err.Error()),
+				"Error Activating Domain DKIM Key",
+				fmt.Sprintf("Created DKIM key but could not activate: %s", err.Error()),
 			)
 			return
 		}
-	}
-
-	// Map to state
-	mapDomainKeyToModel(&plan, domain, selector, domainKey)
-
-	// Set active based on plan (API returns active by default)
-	if !plan.Active.IsNull() {
-		plan.Active = types.BoolValue(plan.Active.ValueBool())
-	} else {
 		plan.Active = types.BoolValue(true)
 	}
 
@@ -295,17 +300,22 @@ func (r *domainDkimKeyResource) ImportState(ctx context.Context, req resource.Im
 func (r *domainDkimKeyResource) findDomainKey(ctx context.Context, domain, selector string) (mtypes.DomainKey, bool, error) {
 	iter := r.client.ListDomainKeys(domain)
 
+	// Use First() instead of Next() because the SDK's DomainKeysIterator.Next()
+	// returns false even on first call due to empty Paging.Next from the API.
+	// A domain can have at most 5 DKIM keys, so pagination isn't needed.
 	var keys []mtypes.DomainKey
-	for iter.Next(ctx, &keys) {
-		for _, key := range keys {
-			if key.Selector == selector {
-				return key, true, nil
-			}
+	if !iter.First(ctx, &keys) {
+		if err := iter.Err(); err != nil {
+			return mtypes.DomainKey{}, false, err
 		}
+		// No error but First returned false - shouldn't happen, but handle gracefully
+		return mtypes.DomainKey{}, false, nil
 	}
 
-	if err := iter.Err(); err != nil {
-		return mtypes.DomainKey{}, false, err
+	for _, key := range keys {
+		if key.Selector == selector {
+			return key, true, nil
+		}
 	}
 
 	return mtypes.DomainKey{}, false, nil

@@ -48,10 +48,10 @@ func DomainDkimKeyResourceSchema() schema.Schema {
 				},
 			},
 			"active": schema.BoolAttribute{
-				Description: "Whether the DKIM key is active. Defaults to true.",
+				Description: "Whether the DKIM key is active. Defaults to false. Note: Activation requires valid DNS records and is not supported on sandbox domains.",
 				Optional:    true,
 				Computed:    true,
-				Default:     booldefault.StaticBool(true),
+				Default:     booldefault.StaticBool(false),
 			},
 			"signing_domain": schema.StringAttribute{
 				Description: "The domain used for signing emails.",

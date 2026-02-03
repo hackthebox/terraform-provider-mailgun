@@ -6,7 +6,6 @@ package template_versions
 import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -59,10 +58,9 @@ func TemplateVersionResourceSchema() schema.Schema {
 				Optional:    true,
 			},
 			"active": schema.BoolAttribute{
-				Description: "Whether this version is the active version of the template.",
+				Description: "Whether this version is the active version of the template. The first version created is automatically active. Note: Active versions cannot be deleted directly; delete the parent template instead.",
 				Optional:    true,
 				Computed:    true,
-				Default:     booldefault.StaticBool(false),
 			},
 			"id": schema.StringAttribute{
 				Description: "The unique identifier of the template version (domain/template_name/tag).",
