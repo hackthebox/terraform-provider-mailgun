@@ -16,6 +16,7 @@ import (
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domain_sending_keys"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domains"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/ip_allowlist"
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mailing_lists"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/routes"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/smtp_credentials"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/template_versions"
@@ -152,6 +153,7 @@ func (p *mailgunProvider) DataSources(_ context.Context) []func() datasource.Dat
 		ip_allowlist.NewIPAllowlistDataSource,              // List IP allowlist entries
 		templates.NewTemplatesDataSource,                   // List templates for a domain
 		template_versions.NewTemplateVersionsDataSource,    // List template versions
+		mailing_lists.NewMailingListsDataSource,            // List mailing lists
 	}
 }
 
@@ -166,5 +168,6 @@ func (p *mailgunProvider) Resources(_ context.Context) []func() resource.Resourc
 		ip_allowlist.NewIPAllowlistResource,
 		templates.NewTemplateResource,
 		template_versions.NewTemplateVersionResource,
+		mailing_lists.NewMailingListResource,
 	}
 }
