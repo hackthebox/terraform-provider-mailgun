@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
 
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domain_dkim_key"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domain_sending_keys"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domain_tracking"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domains"
@@ -158,6 +159,7 @@ func (p *mailgunProvider) DataSources(_ context.Context) []func() datasource.Dat
 		mailing_lists.NewMailingListsDataSource,              // List mailing lists
 		mailing_list_members.NewMailingListMembersDataSource, // List mailing list members
 		domain_tracking.NewDomainTrackingDataSource,          // Domain tracking settings
+		domain_dkim_key.NewDomainDkimKeysDataSource,          // List DKIM keys for a domain
 	}
 }
 
@@ -175,5 +177,6 @@ func (p *mailgunProvider) Resources(_ context.Context) []func() resource.Resourc
 		mailing_lists.NewMailingListResource,
 		mailing_list_members.NewMailingListMemberResource,
 		domain_tracking.NewDomainTrackingResource,
+		domain_dkim_key.NewDomainDkimKeyResource,
 	}
 }
