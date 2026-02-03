@@ -86,6 +86,10 @@ func TestAccRouteResource(t *testing.T) {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
 	}
 
+	if os.Getenv("MAILGUN_TEST_DOMAIN") == "" {
+		t.Skip("MAILGUN_TEST_DOMAIN environment variable is not set")
+	}
+
 	randomSuffix := test_helpers.RandomString(8)
 	description := fmt.Sprintf("test-route-%s", randomSuffix)
 
@@ -129,6 +133,10 @@ func TestAccRouteResource_WithMultipleActions(t *testing.T) {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
 	}
 
+	if os.Getenv("MAILGUN_TEST_DOMAIN") == "" {
+		t.Skip("MAILGUN_TEST_DOMAIN environment variable is not set")
+	}
+
 	randomSuffix := test_helpers.RandomString(8)
 	description := fmt.Sprintf("test-route-multi-%s", randomSuffix)
 
@@ -155,6 +163,10 @@ func TestAccRoutesDataSource(t *testing.T) {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
 	}
 
+	if os.Getenv("MAILGUN_TEST_DOMAIN") == "" {
+		t.Skip("MAILGUN_TEST_DOMAIN environment variable is not set")
+	}
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
 		ProtoV6ProviderFactories: test_helpers.ProtoV6ProviderFactories,
@@ -172,6 +184,10 @@ func TestAccRoutesDataSource(t *testing.T) {
 func TestAccRoutesDataSource_WithLimit(t *testing.T) {
 	if os.Getenv("MAILGUN_API_KEY") == "" {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
+	}
+
+	if os.Getenv("MAILGUN_TEST_DOMAIN") == "" {
+		t.Skip("MAILGUN_TEST_DOMAIN environment variable is not set")
 	}
 
 	resource.Test(t, resource.TestCase{
