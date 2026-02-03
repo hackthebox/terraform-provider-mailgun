@@ -22,7 +22,7 @@ Manages DKIM keys for a Mailgun domain. DKIM (DomainKeys Identified Mail) allows
 
 ### Optional
 
-- `active` (Boolean) Whether the DKIM key is active. Defaults to true.
+- `active` (Boolean) Whether the DKIM key is active. Defaults to false. Note: Activation requires valid DNS records and is not supported on sandbox domains.
 - `bits` (Number) The key size in bits. Valid values are 1024 or 2048. Defaults to 1024.
 
 ### Read-Only

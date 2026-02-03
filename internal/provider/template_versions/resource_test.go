@@ -232,29 +232,6 @@ resource "mailgun_template_version" "test" {
 `, os.Getenv("MAILGUN_API_KEY"), domain, templateName, versionTag)
 }
 
-func testAccTemplateVersionResourceConfigActive(domain, templateName string) string {
-	return fmt.Sprintf(`
-provider "mailgun" {
-  api_key = "%s"
-}
-
-resource "mailgun_template" "test" {
-  domain      = "%s"
-  name        = "%s"
-  description = "Test template for active version testing"
-}
-
-resource "mailgun_template_version" "test" {
-  domain        = mailgun_template.test.domain
-  template_name = mailgun_template.test.name
-  tag           = "active-version"
-  template      = "<html><body>Active version content</body></html>"
-  engine        = "handlebars"
-  active        = true
-}
-`, os.Getenv("MAILGUN_API_KEY"), domain, templateName)
-}
-
 // testAccTemplateVersionResourceConfigWithActive creates a template with a second version
 // to test the active attribute. The second version will be inactive (active=false).
 func testAccTemplateVersionResourceConfigWithActive(domain, templateName string) string {

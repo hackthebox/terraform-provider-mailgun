@@ -183,21 +183,6 @@ resource "mailgun_domain_dkim_key" "test" {
 `, os.Getenv("MAILGUN_API_KEY"), domain, selector, bits)
 }
 
-func testAccDomainDkimKeyResourceConfig(domain, selector string, bits int, active bool) string {
-	return fmt.Sprintf(`
-provider "mailgun" {
-  api_key = "%s"
-}
-
-resource "mailgun_domain_dkim_key" "test" {
-  domain   = "%s"
-  selector = "%s"
-  bits     = %d
-  active   = %t
-}
-`, os.Getenv("MAILGUN_API_KEY"), domain, selector, bits, active)
-}
-
 func testAccDomainDkimKeysDataSourceConfig(domain string) string {
 	return fmt.Sprintf(`
 provider "mailgun" {

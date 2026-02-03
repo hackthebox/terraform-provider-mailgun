@@ -23,7 +23,7 @@ Manages a version of a Mailgun template. Template versions allow you to maintain
 
 ### Optional
 
-- `active` (Boolean) Whether this version is the active version of the template.
+- `active` (Boolean) Whether this version is the active version of the template. The first version created is automatically active. Note: Active versions cannot be deleted directly; delete the parent template instead.
 - `comment` (String) A comment describing this version.
 - `engine` (String) The templating engine to use. Valid values: 'handlebars' (default) or 'go'.
 - `tag` (String) The version tag identifier. If not specified, Mailgun auto-generates one. Changing this forces recreation.
