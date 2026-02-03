@@ -14,6 +14,7 @@ import (
 	"github.com/mailgun/mailgun-go/v5"
 
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domain_sending_keys"
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domain_tracking"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domains"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/ip_allowlist"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mailing_list_members"
@@ -156,6 +157,7 @@ func (p *mailgunProvider) DataSources(_ context.Context) []func() datasource.Dat
 		template_versions.NewTemplateVersionsDataSource,      // List template versions
 		mailing_lists.NewMailingListsDataSource,              // List mailing lists
 		mailing_list_members.NewMailingListMembersDataSource, // List mailing list members
+		domain_tracking.NewDomainTrackingDataSource,          // Domain tracking settings
 	}
 }
 
@@ -172,5 +174,6 @@ func (p *mailgunProvider) Resources(_ context.Context) []func() resource.Resourc
 		template_versions.NewTemplateVersionResource,
 		mailing_lists.NewMailingListResource,
 		mailing_list_members.NewMailingListMemberResource,
+		domain_tracking.NewDomainTrackingResource,
 	}
 }
