@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
 
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/alerts"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domain_dkim_key"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domain_ip"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/domain_sending_keys"
@@ -23,6 +24,7 @@ import (
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mailing_lists"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/routes"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/smtp_credentials"
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/subaccounts"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/template_versions"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/templates"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/webhooks"
@@ -162,6 +164,11 @@ func (p *mailgunProvider) DataSources(_ context.Context) []func() datasource.Dat
 		domain_tracking.NewDomainTrackingDataSource,          // Domain tracking settings
 		domain_dkim_key.NewDomainDkimKeysDataSource,          // List DKIM keys for a domain
 		domain_ip.NewDomainIPsDataSource,                     // List IPs for a domain
+		subaccounts.NewSubaccountDataSource,                  // Single subaccount lookup
+		subaccounts.NewSubaccountsListDataSource,             // List all subaccounts
+		alerts.NewAlertDataSource,                            // Single alert lookup
+		alerts.NewAlertsListDataSource,                       // List all alerts
+		alerts.NewAlertEventsDataSource,                      // List available alert event types
 	}
 }
 
@@ -181,5 +188,6 @@ func (p *mailgunProvider) Resources(_ context.Context) []func() resource.Resourc
 		domain_tracking.NewDomainTrackingResource,
 		domain_dkim_key.NewDomainDkimKeyResource,
 		domain_ip.NewDomainIPResource,
+		alerts.NewAlertResource, // Alert resource (immutable - changes require recreation)
 	}
 }
