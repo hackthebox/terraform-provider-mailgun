@@ -1,0 +1,53 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
+subcategory: "Alerts"
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+## Channel Configuration
+
+Each alert must specify exactly one channel type with its corresponding settings:
+
+- **Email Channel**: Requires `emails` - a list of email addresses to receive notifications
+- **Webhook Channel**: Requires `webhook_url` - the URL to receive webhook notifications
+- **Slack Channel**: Requires `slack_ids` - a list of Slack channel IDs (requires Slack integration)
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{tffile .ExampleFile }}
+{{- end }}
+
+{{ .SchemaMarkdown | trimspace }}
+
+{{- if or .HasImport .HasImportIDConfig .HasImportIdentityConfig }}
+
+## Import
+
+{{- if .HasImport }}
+
+Import is supported using the following syntax:
+
+{{codefile "shell" .ImportFile }}
+{{- end }}
+
+{{- if .HasImportIDConfig }}
+
+Using `id`:
+
+{{tffile .ImportIDConfigFile }}
+{{- end }}
+
+{{- if .HasImportIdentityConfig }}
+
+Using resource identity:
+
+{{tffile .ImportIdentityConfigFile }}
+{{- end }}
+
+{{- end }}
