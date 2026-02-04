@@ -16,7 +16,7 @@ type SubaccountModel struct {
 
 // SubaccountsListModel represents the list data source model.
 type SubaccountsListModel struct {
-	Enabled     types.Bool         `tfsdk:"enabled"`
-	Subaccounts []SubaccountModel  `tfsdk:"subaccounts"`
-	TotalCount  types.Int64        `tfsdk:"total_count"`
+	Enabled     types.Bool        `tfsdk:"enabled"`
+	Subaccounts []SubaccountModel `tfsdk:"subaccounts"`
+	TotalCount  types.Int64       `tfsdk:"total_count"`
 }
