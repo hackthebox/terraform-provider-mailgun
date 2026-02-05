@@ -1,0 +1,11 @@
+```release-note:bug
+resource/mailgun_domain: Fixed incorrect handling of wildcard, spam_action, force_dkim_authority, and dkim_key_size attributes by adding RequiresReplace plan modifiers
+```
+
+```release-note:bug
+resource/mailgun_domain: Fixed resource import by using domain name as ID instead of Mailgun internal ID
+```
+
+```release-note:bug
+resource/mailgun_ip_allowlist: Fixed acceptance tests that could lock out test runners
+```

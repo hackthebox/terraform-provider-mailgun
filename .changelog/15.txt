@@ -1,0 +1,7 @@
+```release-note:enhancement
+resource/mailgun_route: Added schema-level validation for actions (min 1 item) and priority (>= 0)
+```
+
+```release-note:enhancement
+resource/mailgun_domain: Added schema-level validation for spam_action, dkim_key_size, and web_scheme enums
+```

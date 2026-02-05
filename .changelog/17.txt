@@ -1,0 +1,7 @@
+```release-note:new-resource
+mailgun_ip_allowlist
+```
+
+```release-note:new-data-source
+mailgun_ip_allowlist
+```

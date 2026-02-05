@@ -1,0 +1,11 @@
+```release-note:breaking-change
+resource/mailgun_api_key: Removed in favor of mailgun_domain_sending_key
+```
+
+```release-note:new-resource
+mailgun_domain_sending_key
+```
+
+```release-note:new-data-source
+mailgun_domain_sending_keys
+```

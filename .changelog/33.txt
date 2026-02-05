@@ -1,0 +1,3 @@
+```release-note:enhancement
+provider: Add schema versioning (Version: 0) to all 14 resources to enable future state migrations
+```

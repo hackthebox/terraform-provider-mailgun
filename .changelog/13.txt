@@ -1,0 +1,7 @@
+```release-note:new-resource
+mailgun_route
+```
+
+```release-note:new-data-source
+mailgun_routes
+```

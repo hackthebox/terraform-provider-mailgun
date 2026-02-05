@@ -1,0 +1,70 @@
+# Changelog entry validation workflow
+name: Changelog Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changelog:
+    name: Changelog Entry
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Check for changelog entry
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          # Check if PR has the changelog-not-required label
+          if echo "$PR_LABELS" | grep -q "changelog-not-required"; then
+            echo "PR has 'changelog-not-required' label, skipping changelog check"
+            exit 0
+          fi
+
+          # Check if changelog file exists for this PR
+          CHANGELOG_FILE=".changelog/${PR_NUMBER}.txt"
+          if [[ -f "$CHANGELOG_FILE" ]]; then
+            echo "Found changelog entry: $CHANGELOG_FILE"
+
+            # Validate the changelog format
+            if grep -qE '```release-note:(new-resource|new-data-source|enhancement|bug|breaking-change|deprecation|note)' "$CHANGELOG_FILE"; then
+              echo "Changelog entry has valid format"
+              cat "$CHANGELOG_FILE"
+              exit 0
+            else
+              echo "Error: Changelog entry exists but has invalid format"
+              echo ""
+              echo "Expected format:"
+              echo '```release-note:{TYPE}'
+              echo '{DESCRIPTION}'
+              echo '```'
+              echo ""
+              echo "Valid types: new-resource, new-data-source, enhancement, bug, breaking-change, deprecation, note"
+              echo ""
+              echo "See .changelog/README.md for details"
+              exit 1
+            fi
+          else
+            echo "Error: Missing changelog entry"
+            echo ""
+            echo "Please create a file: .changelog/${PR_NUMBER}.txt"
+            echo ""
+            echo "Example:"
+            echo '```release-note:enhancement'
+            echo 'resource/mailgun_domain: Added support for new feature'
+            echo '```'
+            echo ""
+            echo "If this PR does not require a changelog entry (docs, tests, refactoring),"
+            echo "add the 'changelog-not-required' label to this PR."
+            echo ""
+            echo "See .changelog/README.md for details"
+            exit 1
+          fi

@@ -1,0 +1,27 @@
+```release-note:new-resource
+mailgun_smtp_credential
+```
+
+```release-note:new-resource
+mailgun_api_key
+```
+
+```release-note:new-data-source
+mailgun_smtp_credential
+```
+
+```release-note:new-data-source
+mailgun_smtp_credentials
+```
+
+```release-note:new-data-source
+mailgun_api_key
+```
+
+```release-note:new-data-source
+mailgun_api_keys
+```
+
+```release-note:enhancement
+provider: Added support for US and EU Mailgun regions via region configuration
+```
