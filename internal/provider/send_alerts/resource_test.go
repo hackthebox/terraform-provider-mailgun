@@ -55,6 +55,9 @@ func TestAccSendAlertResource_Basic(t *testing.T) {
 	if os.Getenv("MAILGUN_API_KEY") == "" {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
 	}
+	if os.Getenv("MAILGUN_TEST_SEND_ALERTS_ENABLED") == "" {
+		t.Skip("MAILGUN_TEST_SEND_ALERTS_ENABLED environment variable is not set (send alerts feature may not be available on account)")
+	}
 
 	alertName := fmt.Sprintf("tf-test-alert-%d", os.Getpid())
 
@@ -87,6 +90,9 @@ func TestAccSendAlertResource_WithOptionalFields(t *testing.T) {
 	if os.Getenv("MAILGUN_API_KEY") == "" {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
 	}
+	if os.Getenv("MAILGUN_TEST_SEND_ALERTS_ENABLED") == "" {
+		t.Skip("MAILGUN_TEST_SEND_ALERTS_ENABLED environment variable is not set (send alerts feature may not be available on account)")
+	}
 
 	alertName := fmt.Sprintf("tf-test-alert-full-%d", os.Getpid())
 
@@ -116,6 +122,9 @@ func TestAccSendAlertResource_WithOptionalFields(t *testing.T) {
 func TestAccSendAlertResource_Update(t *testing.T) {
 	if os.Getenv("MAILGUN_API_KEY") == "" {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
+	}
+	if os.Getenv("MAILGUN_TEST_SEND_ALERTS_ENABLED") == "" {
+		t.Skip("MAILGUN_TEST_SEND_ALERTS_ENABLED environment variable is not set (send alerts feature may not be available on account)")
 	}
 
 	alertName := fmt.Sprintf("tf-test-alert-update-%d", os.Getpid())

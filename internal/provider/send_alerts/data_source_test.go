@@ -91,6 +91,9 @@ func TestAccSendAlertsListDataSource(t *testing.T) {
 	if os.Getenv("MAILGUN_API_KEY") == "" {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
 	}
+	if os.Getenv("MAILGUN_TEST_SEND_ALERTS_ENABLED") == "" {
+		t.Skip("MAILGUN_TEST_SEND_ALERTS_ENABLED environment variable is not set (send alerts feature may not be available on account)")
+	}
 
 	// This test just lists alerts - doesn't require any specific alert to exist
 	resource.Test(t, resource.TestCase{
