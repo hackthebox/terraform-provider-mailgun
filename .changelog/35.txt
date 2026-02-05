@@ -1,0 +1,3 @@
+```release-note:note
+provider: Release v1.0.0 with 14 resources, 20 data sources, and full test coverage
+```
