@@ -13,6 +13,7 @@ import (
 // IPAllowlistResourceSchema returns the schema for the mailgun_ip_allowlist resource.
 func IPAllowlistResourceSchema() schema.Schema {
 	return schema.Schema{
+		Version:     0,
 		Description: "Manages a Mailgun IP allowlist entry. IP allowlisting restricts API key and SMTP credential usage to specific IP addresses.",
 		Attributes: map[string]schema.Attribute{
 			"address": schema.StringAttribute{

@@ -13,6 +13,7 @@ import (
 // SmtpCredentialResourceSchema returns the schema for the SMTP credential resource
 func SmtpCredentialResourceSchema() rschema.Schema {
 	return rschema.Schema{
+		Version:     0,
 		Description: "Manages an SMTP credential for a Mailgun domain. SMTP credentials allow sending email via SMTP protocol.",
 		Attributes: map[string]rschema.Attribute{
 			"id": rschema.StringAttribute{

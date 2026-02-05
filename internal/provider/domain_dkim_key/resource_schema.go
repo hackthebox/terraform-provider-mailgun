@@ -15,6 +15,7 @@ import (
 // DomainDkimKeyResourceSchema returns the schema for the mailgun_domain_dkim_key resource.
 func DomainDkimKeyResourceSchema() schema.Schema {
 	return schema.Schema{
+		Version:     0,
 		Description: "Manages DKIM keys for a Mailgun domain. DKIM (DomainKeys Identified Mail) allows email recipients to verify that messages were sent from an authorized mail server.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

@@ -15,6 +15,7 @@ import (
 // TemplateVersionResourceSchema returns the schema for the mailgun_template_version resource.
 func TemplateVersionResourceSchema() schema.Schema {
 	return schema.Schema{
+		Version:     0,
 		Description: "Manages a version of a Mailgun template. Template versions allow you to maintain multiple versions of email content for A/B testing or rollbacks.",
 		Attributes: map[string]schema.Attribute{
 			"domain": schema.StringAttribute{

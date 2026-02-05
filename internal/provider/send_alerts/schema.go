@@ -60,6 +60,7 @@ func FilterObjectType() map[string]attr.Type {
 // SendAlertResourceSchema returns the schema for the send_alert resource.
 func SendAlertResourceSchema() resourceschema.Schema {
 	return resourceschema.Schema{
+		Version:     0,
 		Description: "Manages a Mailgun send alert. Send alerts notify you when sending metrics cross defined thresholds.",
 		Attributes: map[string]resourceschema.Attribute{
 			"id": resourceschema.StringAttribute{

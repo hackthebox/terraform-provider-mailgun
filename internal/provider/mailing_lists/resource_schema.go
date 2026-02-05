@@ -15,6 +15,7 @@ import (
 // MailingListResourceSchema returns the schema for the mailgun_mailing_list resource.
 func MailingListResourceSchema() schema.Schema {
 	return schema.Schema{
+		Version:     0,
 		Description: "Manages a Mailgun mailing list. Mailing lists allow you to create distribution lists for sending emails to multiple recipients.",
 		Attributes: map[string]schema.Attribute{
 			"address": schema.StringAttribute{

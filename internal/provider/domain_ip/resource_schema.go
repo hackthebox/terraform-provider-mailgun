@@ -12,6 +12,7 @@ import (
 // DomainIPResourceSchema returns the schema for the mailgun_domain_ip resource.
 func DomainIPResourceSchema() schema.Schema {
 	return schema.Schema{
+		Version:     0,
 		Description: "Manages IP address associations for a Mailgun domain. This resource allows you to assign dedicated IP addresses to your domains for sending emails.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{

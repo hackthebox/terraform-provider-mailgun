@@ -18,6 +18,7 @@ import (
 // RouteResourceSchema returns the schema for the mailgun_route resource.
 func RouteResourceSchema() schema.Schema {
 	return schema.Schema{
+		Version:     0,
 		Description: "Manages a Mailgun route. Routes allow you to handle incoming emails by matching expressions and executing actions.",
 		Attributes: map[string]schema.Attribute{
 			"expression": schema.StringAttribute{

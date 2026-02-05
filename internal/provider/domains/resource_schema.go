@@ -18,6 +18,7 @@ import (
 // DomainResourceSchema returns the schema for the domain resource
 func DomainResourceSchema() rschema.Schema {
 	return rschema.Schema{
+		Version:     0,
 		Description: "Manages a Mailgun domain. Domains are used to send and receive email.",
 		Attributes: map[string]rschema.Attribute{
 			// Required/Optional input attributes

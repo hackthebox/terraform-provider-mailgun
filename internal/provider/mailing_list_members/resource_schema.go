@@ -14,6 +14,7 @@ import (
 // MailingListMemberResourceSchema returns the schema for the mailgun_mailing_list_member resource.
 func MailingListMemberResourceSchema() schema.Schema {
 	return schema.Schema{
+		Version:     0,
 		Description: "Manages a member of a Mailgun mailing list. Members are email addresses that receive messages sent to the mailing list.",
 		Attributes: map[string]schema.Attribute{
 			"list_address": schema.StringAttribute{

@@ -16,6 +16,7 @@ import (
 // DomainSendingKeyResourceSchema returns the schema for the domain sending key resource.
 func DomainSendingKeyResourceSchema() schema.Schema {
 	return schema.Schema{
+		Version: 0,
 		Description: "Creates a domain-scoped sending API key for Mailgun. " +
 			"This key can only be used to send emails via the specified domain. " +
 			"Use this resource to provision application credentials for sending email.",

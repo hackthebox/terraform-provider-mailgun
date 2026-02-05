@@ -16,6 +16,7 @@ import (
 // WebhookResourceSchema returns the schema for the mailgun_webhook resource.
 func WebhookResourceSchema() schema.Schema {
 	return schema.Schema{
+		Version:     0,
 		Description: "Manages a Mailgun webhook. Webhooks allow you to receive HTTP POST requests for email events like deliveries, opens, clicks, bounces, and complaints.",
 		Attributes: map[string]schema.Attribute{
 			"domain": schema.StringAttribute{

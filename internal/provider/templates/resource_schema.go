@@ -15,6 +15,7 @@ import (
 // TemplateResourceSchema returns the schema for the mailgun_template resource.
 func TemplateResourceSchema() schema.Schema {
 	return schema.Schema{
+		Version:     0,
 		Description: "Manages a Mailgun template. Templates allow you to store and reuse email content with variable substitution using Handlebars or Go templating engines.",
 		Attributes: map[string]schema.Attribute{
 			"domain": schema.StringAttribute{

@@ -13,6 +13,7 @@ import (
 // DomainTrackingResourceSchema returns the schema for the mailgun_domain_tracking resource.
 func DomainTrackingResourceSchema() schema.Schema {
 	return schema.Schema{
+		Version:     0,
 		Description: "Manages tracking settings for a Mailgun domain. This includes click tracking, open tracking, and unsubscribe tracking with customizable footers.",
 		Attributes: map[string]schema.Attribute{
 			"domain": schema.StringAttribute{
