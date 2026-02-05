@@ -7,7 +7,7 @@ description: |-
 
 # mailgun_send_alerts (Data Source)
 
-Use this data source to list all send alerts configured for your Mailgun account.
+Lists all Mailgun send alerts for the account.
 
 ## Example Usage
 
@@ -43,7 +43,7 @@ output "bounce_alert_names" {
 
 ### Read-Only
 
-- `alerts` (List of Object) List of send alerts. (see [below for nested schema](#nestedatt--alerts))
+- `alerts` (Attributes List) List of send alerts. (see [below for nested schema](#nestedatt--alerts))
 - `total_count` (Number) Total number of send alerts.
 
 <a id="nestedatt--alerts"></a>
@@ -57,7 +57,7 @@ Read-Only:
 - `created_at` (String) Timestamp of when the alert was created.
 - `description` (String) A description of what the alert does.
 - `dimension` (String) The dimension to apply to the metric.
-- `filters` (List of Object) A list of filters applied to the alert.
+- `filters` (Attributes List) A list of filters applied to the alert. (see [below for nested schema](#nestedatt--alerts--filters))
 - `id` (String) The unique identifier for the alert.
 - `last_checked` (String) Timestamp of when the alert was last checked.
 - `limit` (String) The threshold limit for the alert.
@@ -67,3 +67,12 @@ Read-Only:
 - `period` (String) The time period for the metric aggregation.
 - `subaccount_id` (String) The subaccount ID this alert belongs to.
 - `updated_at` (String) Timestamp of when the alert was last updated.
+
+<a id="nestedatt--alerts--filters"></a>
+### Nested Schema for `alerts.filters`
+
+Read-Only:
+
+- `comparator` (String) The comparison operator for the filter.
+- `dimension` (String) The dimension to filter by.
+- `values` (List of String) The dimension values to apply to filter.

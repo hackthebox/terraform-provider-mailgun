@@ -7,7 +7,7 @@ description: |-
 
 # mailgun_send_alert (Data Source)
 
-Use this data source to fetch information about an existing Mailgun send alert by its name.
+Fetches a Mailgun send alert by name.
 
 ## Example Usage
 
@@ -42,7 +42,7 @@ output "alert_limit" {
 - `created_at` (String) Timestamp of when the alert was created.
 - `description` (String) A description of what the alert does.
 - `dimension` (String) The dimension to apply to the metric.
-- `filters` (List of Object) A list of filters applied to the alert. (see [below for nested schema](#nestedatt--filters))
+- `filters` (Attributes List) A list of filters applied to the alert. (see [below for nested schema](#nestedatt--filters))
 - `id` (String) The unique identifier for the alert.
 - `last_checked` (String) Timestamp of when the alert was last checked.
 - `limit` (String) The threshold limit for the alert.

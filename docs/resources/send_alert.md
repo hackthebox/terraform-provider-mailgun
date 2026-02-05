@@ -7,22 +7,22 @@ description: |-
 
 # mailgun_send_alert (Resource)
 
-Manages a Mailgun send alert. Send alerts allow you to get instant notifications on the sending metrics that matter most, configured specifically for your unique business needs.
+Manages a Mailgun send alert. Send alerts notify you when sending metrics cross defined thresholds.
 
-## Supported Metrics
+## Metrics and Dimensions
 
+The following metrics are available for monitoring:
 - `hard_bounce_rate` - Rate of hard bounces
 - `temporary_fail_rate` - Rate of temporary failures
-- `delivered_rate` - Delivery success rate
+- `delivered_rate` - Rate of successful deliveries
 - `complained_rate` - Rate of spam complaints
 
-## Supported Dimensions
-
-- `domain` - Monitor by sending domain
-- `ip` - Monitor by IP address
-- `ip_pool` - Monitor by IP pool
-- `recipient_provider` - Monitor by recipient email provider
-- `subaccount` - Monitor by subaccount
+Alerts can be grouped by the following dimensions:
+- `domain` - Group by sending domain
+- `ip` - Group by sending IP address
+- `ip_pool` - Group by IP pool
+- `recipient_provider` - Group by recipient email provider
+- `subaccount` - Group by subaccount
 
 ## Example Usage
 
@@ -81,17 +81,17 @@ resource "mailgun_send_alert" "filtered_alert" {
 
 ### Required
 
-- `comparator` (String) The comparison operator. Valid values: `=`, `!=`, `<`, `<=`, `>`, `>=`.
-- `dimension` (String) The dimension to apply to the metric. Valid values: `domain`, `ip`, `ip_pool`, `recipient_provider`, `subaccount`.
+- `comparator` (String) The comparison operator. Valid values: =, !=, <, <=, >, >=.
+- `dimension` (String) The dimension to apply to the metric. Valid values: domain, ip, ip_pool, recipient_provider, subaccount.
 - `limit` (String) The threshold limit for the alert (e.g., '0.05' for 5%).
-- `metric` (String) The metric being monitored. Valid values: `hard_bounce_rate`, `temporary_fail_rate`, `delivered_rate`, `complained_rate`.
+- `metric` (String) The metric being monitored. Valid values: hard_bounce_rate, temporary_fail_rate, delivered_rate, complained_rate.
 - `name` (String) A user-friendly name for the alert. This is used as the unique identifier.
 
 ### Optional
 
-- `alert_channels` (List of String) A list of alert channels to notify. Valid values: `email`, `slack`, `webhook`.
+- `alert_channels` (List of String) A list of alert channels to notify. Valid values: email, slack, webhook.
 - `description` (String) A description of what the alert does.
-- `filters` (Block List) A list of filters to apply to the alert. (see [below for nested schema](#nestedblock--filters))
+- `filters` (Attributes List) A list of filters to apply to the alert. (see [below for nested schema](#nestedatt--filters))
 - `period` (String) The time period for the metric aggregation (e.g., '1h', '1d').
 
 ### Read-Only
@@ -104,17 +104,17 @@ resource "mailgun_send_alert" "filtered_alert" {
 - `subaccount_id` (String) The subaccount ID this alert belongs to.
 - `updated_at` (String) Timestamp of when the alert was last updated.
 
-<a id="nestedblock--filters"></a>
+<a id="nestedatt--filters"></a>
 ### Nested Schema for `filters`
 
 Required:
 
-- `dimension` (String) The dimension to filter by. Valid values: `domain`, `ip`, `ip_pool`, `recipient_provider`, `subaccount`.
+- `dimension` (String) The dimension to filter by.
 - `values` (List of String) The dimension values to apply to filter.
 
 Optional:
 
-- `comparator` (String) The comparison operator for the filter. Valid values: `=`, `!=`, `<`, `<=`, `>`, `>=`.
+- `comparator` (String) The comparison operator for the filter.
 
 ## Import
 

@@ -1,6 +1,6 @@
 ---
 page_title: "{{.Name}} {{.Type}} - {{.ProviderName}}"
-subcategory: "Alerts"
+subcategory: "Send Alerts"
 description: |-
 {{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
 ---
@@ -9,13 +9,20 @@ description: |-
 
 {{ .Description | trimspace }}
 
-## Channel Configuration
+## Metrics and Dimensions
 
-Each alert must specify exactly one channel type with its corresponding settings:
+The following metrics are available for monitoring:
+- `hard_bounce_rate` - Rate of hard bounces
+- `temporary_fail_rate` - Rate of temporary failures
+- `delivered_rate` - Rate of successful deliveries
+- `complained_rate` - Rate of spam complaints
 
-- **Email Channel**: Requires `emails` - a list of email addresses to receive notifications
-- **Webhook Channel**: Requires `webhook_url` - the URL to receive webhook notifications
-- **Slack Channel**: Requires `slack_ids` - a list of Slack channel IDs (requires Slack integration)
+Alerts can be grouped by the following dimensions:
+- `domain` - Group by sending domain
+- `ip` - Group by sending IP address
+- `ip_pool` - Group by IP pool
+- `recipient_provider` - Group by recipient email provider
+- `subaccount` - Group by subaccount
 
 {{ if .HasExample -}}
 ## Example Usage
