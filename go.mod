@@ -7,7 +7,7 @@ require (
 	github.com/hashicorp/terraform-plugin-framework-validators v0.19.0
 	github.com/hashicorp/terraform-plugin-go v0.29.0
 	github.com/hashicorp/terraform-plugin-testing v1.14.0
-	github.com/mailgun/mailgun-go/v5 v5.12.0
+	github.com/mailgun/mailgun-go/v5 v5.13.0
 )
 
 require (
