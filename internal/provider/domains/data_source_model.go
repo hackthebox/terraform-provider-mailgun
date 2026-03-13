@@ -30,4 +30,5 @@ type DomainDataSourceModel struct {
 	Wildcard                   types.Bool   `tfsdk:"wildcard"`
 	ReceivingDnsRecords        types.List   `tfsdk:"receiving_dns_records"`
 	SendingDnsRecords          types.List   `tfsdk:"sending_dns_records"`
+	AuthenticationDnsRecords   types.List   `tfsdk:"authentication_dns_records"`
 }

@@ -41,8 +41,9 @@ type DomainModel struct {
 	TrackingHost     types.String `tfsdk:"tracking_host"`
 
 	// DNS records
-	ReceivingDnsRecords types.List `tfsdk:"receiving_dns_records"`
-	SendingDnsRecords   types.List `tfsdk:"sending_dns_records"`
+	ReceivingDnsRecords       types.List `tfsdk:"receiving_dns_records"`
+	SendingDnsRecords         types.List `tfsdk:"sending_dns_records"`
+	AuthenticationDnsRecords  types.List `tfsdk:"authentication_dns_records"`
 }
 
 // ReceivingDnsRecordsValue represents a DNS record for receiving
@@ -102,5 +103,35 @@ func (v SendingDnsRecordsValue) AttributeTypes(ctx context.Context) map[string]a
 
 // SendingDnsRecordsType represents the list type for sending DNS records
 type SendingDnsRecordsType struct {
+	types.ObjectType
+}
+
+// AuthenticationDnsRecordsValue represents a DNS record for authentication (e.g. DMARC)
+type AuthenticationDnsRecordsValue struct {
+	Cached     types.List   `tfsdk:"cached"`
+	IsActive   types.Bool   `tfsdk:"is_active"`
+	Name       types.String `tfsdk:"name"`
+	Priority   types.String `tfsdk:"priority"`
+	RecordType types.String `tfsdk:"record_type"`
+	Valid      types.String `tfsdk:"valid"`
+	Value      types.String `tfsdk:"value"`
+	state      attr.ValueState
+}
+
+// AttributeTypes returns the attribute types for AuthenticationDnsRecordsValue
+func (v AuthenticationDnsRecordsValue) AttributeTypes(ctx context.Context) map[string]attr.Type {
+	return map[string]attr.Type{
+		"cached":      types.ListType{ElemType: types.StringType},
+		"is_active":   types.BoolType,
+		"name":        types.StringType,
+		"priority":    types.StringType,
+		"record_type": types.StringType,
+		"valid":       types.StringType,
+		"value":       types.StringType,
+	}
+}
+
+// AuthenticationDnsRecordsType represents the list type for authentication DNS records
+type AuthenticationDnsRecordsType struct {
 	types.ObjectType
 }
