@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
+	"github.com/mailgun/mailgun-go/v5/mtypes"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -19,6 +20,36 @@ var (
 	_ datasource.DataSource              = &DomainDataSource{}
 	_ datasource.DataSourceWithConfigure = &DomainDataSource{}
 )
+
+// setAuthenticationDNSRecordsOnDataSource maps a slice of mtypes.DNSRecord into the
+// data source model's AuthenticationDnsRecords list attribute.
+func setAuthenticationDNSRecordsOnDataSource(ctx context.Context, records []mtypes.DNSRecord, model *DomainDataSourceModel) {
+	authType := AuthenticationDnsRecordsType{
+		ObjectType: types.ObjectType{AttrTypes: AuthenticationDnsRecordsValue{}.AttributeTypes(ctx)},
+	}
+	if len(records) == 0 {
+		model.AuthenticationDnsRecords = types.ListNull(authType)
+		return
+	}
+
+	authRecords := make([]AuthenticationDnsRecordsValue, len(records))
+	for i, record := range records {
+		cachedList, _ := types.ListValueFrom(ctx, types.StringType, record.Cached)
+		authRecords[i] = AuthenticationDnsRecordsValue{
+			Cached:     cachedList,
+			IsActive:   types.BoolValue(record.Active),
+			Name:       types.StringValue(record.Name),
+			Priority:   types.StringValue(record.Priority),
+			RecordType: types.StringValue(record.RecordType),
+			Valid:      types.StringValue(record.Valid),
+			Value:      types.StringValue(record.Value),
+			state:      attr.ValueStateKnown,
+		}
+	}
+
+	authList, _ := types.ListValueFrom(ctx, authType, authRecords)
+	model.AuthenticationDnsRecords = authList
+}
 
 // DomainDataSource is the single domain data source implementation.
 type DomainDataSource struct {
@@ -165,6 +196,16 @@ func (d *DomainDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		}
 		data.SendingDnsRecords = types.ListNull(sendingDnsRecordsType)
 	}
+
+	// Fetch authentication DNS records (DMARC) separately — not yet in SDK
+	authRecords, authErr := getAuthenticationDNSRecords(readCtx, d.client, domainName)
+	if authErr != nil {
+		resp.Diagnostics.AddWarning(
+			"Could Not Fetch Authentication DNS Records",
+			fmt.Sprintf("Authentication DNS records could not be retrieved for domain %s: %s", domainName, authErr),
+		)
+	}
+	setAuthenticationDNSRecordsOnDataSource(readCtx, authRecords, &data)
 
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

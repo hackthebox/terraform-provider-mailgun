@@ -5,7 +5,9 @@ package domains
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -156,6 +158,16 @@ func (r *DomainResource) Create(ctx context.Context, req resource.CreateRequest,
 	// Map response to a plan model
 	plan = mapDomainResponseToModel(domainResp, plan)
 
+	// Fetch authentication DNS records (DMARC) separately — not yet in SDK
+	authRecords, err := getAuthenticationDNSRecords(ctx, r.client, domainName)
+	if err != nil {
+		resp.Diagnostics.AddWarning(
+			"Could Not Fetch Authentication DNS Records",
+			fmt.Sprintf("Domain %s was created, but authentication DNS records could not be retrieved: %s", domainName, err),
+		)
+	}
+	setAuthenticationDNSRecords(ctx, authRecords, &plan)
+
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -206,6 +218,16 @@ func (r *DomainResource) Read(ctx context.Context, req resource.ReadRequest, res
 
 	// Map response to a state model
 	state = mapDomainResponseToModel(domainResp, state)
+
+	// Fetch authentication DNS records (DMARC) separately — not yet in SDK
+	authRecords, err := getAuthenticationDNSRecords(ctx, r.client, domainName)
+	if err != nil {
+		resp.Diagnostics.AddWarning(
+			"Could Not Fetch Authentication DNS Records",
+			fmt.Sprintf("Authentication DNS records could not be retrieved for domain %s: %s", domainName, err),
+		)
+	}
+	setAuthenticationDNSRecords(ctx, authRecords, &state)
 
 	// Save updated state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -284,6 +306,16 @@ func (r *DomainResource) Update(ctx context.Context, req resource.UpdateRequest,
 
 	// Map response to model
 	plan = mapDomainResponseToModel(domainResp, plan)
+
+	// Fetch authentication DNS records (DMARC) separately — not yet in SDK
+	authRecords, err := getAuthenticationDNSRecords(ctx, r.client, domainName)
+	if err != nil {
+		resp.Diagnostics.AddWarning(
+			"Could Not Fetch Authentication DNS Records",
+			fmt.Sprintf("Authentication DNS records could not be retrieved for domain %s: %s", domainName, err),
+		)
+	}
+	setAuthenticationDNSRecords(ctx, authRecords, &plan)
 
 	// Save updated state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -369,8 +401,80 @@ func (r *DomainResource) ImportState(ctx context.Context, req resource.ImportSta
 	state.Name = types.StringValue(domainName)
 	state = mapDomainResponseToModel(domainResp, state)
 
+	// Fetch authentication DNS records (DMARC) separately — not yet in SDK
+	authRecords, err := getAuthenticationDNSRecords(importCtx, r.client, domainName)
+	if err != nil {
+		resp.Diagnostics.AddWarning(
+			"Could Not Fetch Authentication DNS Records",
+			fmt.Sprintf("Authentication DNS records could not be retrieved for domain %s: %s", domainName, err),
+		)
+	}
+	setAuthenticationDNSRecords(importCtx, authRecords, &state)
+
 	// Save imported state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+
+// setAuthenticationDNSRecords maps a slice of mtypes.DNSRecord into the model's
+// AuthenticationDnsRecords list attribute.
+func setAuthenticationDNSRecords(ctx context.Context, records []mtypes.DNSRecord, model *DomainModel) {
+	authType := AuthenticationDnsRecordsType{
+		ObjectType: types.ObjectType{AttrTypes: AuthenticationDnsRecordsValue{}.AttributeTypes(ctx)},
+	}
+	if len(records) == 0 {
+		model.AuthenticationDnsRecords = types.ListNull(authType)
+		return
+	}
+
+	authRecords := make([]AuthenticationDnsRecordsValue, len(records))
+	for i, record := range records {
+		cachedList, _ := types.ListValueFrom(ctx, types.StringType, record.Cached)
+		authRecords[i] = AuthenticationDnsRecordsValue{
+			Cached:     cachedList,
+			IsActive:   types.BoolValue(record.Active),
+			Name:       types.StringValue(record.Name),
+			Priority:   types.StringValue(record.Priority),
+			RecordType: types.StringValue(record.RecordType),
+			Valid:      types.StringValue(record.Valid),
+			Value:      types.StringValue(record.Value),
+			state:      attr.ValueStateKnown,
+		}
+	}
+
+	authList, _ := types.ListValueFrom(ctx, authType, authRecords)
+	model.AuthenticationDnsRecords = authList
+}
+
+// extendedDomainResponse extends the SDK's GetDomainResponse to capture
+// authentication_dns_records, which the mailgun-go SDK does not yet expose.
+type extendedDomainResponse struct {
+	mtypes.GetDomainResponse
+	AuthenticationDNSRecords []mtypes.DNSRecord `json:"authentication_dns_records"`
+}
+
+// getAuthenticationDNSRecords fetches authentication DNS records (e.g. DMARC) directly
+// from the Mailgun API, since the mailgun-go SDK does not yet expose this field.
+func getAuthenticationDNSRecords(ctx context.Context, client *mailgun.Client, domainName string) ([]mtypes.DNSRecord, error) {
+	url := fmt.Sprintf("%s/v4/domains/%s", client.APIBase(), domainName)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth("api", client.APIKey())
+
+	resp, err := client.HTTPClient().Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result extendedDomainResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return result.AuthenticationDNSRecords, nil
 }
 
 // mapDomainResponseToModel maps Mailgun API response to Terraform model
@@ -448,6 +552,15 @@ func mapDomainResponseToModel(domainResp mtypes.GetDomainResponse, model DomainM
 			ObjectType: types.ObjectType{AttrTypes: SendingDnsRecordsValue{}.AttributeTypes(ctx)},
 		}
 		model.SendingDnsRecords = types.ListNull(sendingDnsRecordsType)
+	}
+
+	// Authentication DNS records are populated separately via getAuthenticationDNSRecords;
+	// initialize as null here so state is always well-defined.
+	if model.AuthenticationDnsRecords.IsUnknown() {
+		authDnsRecordsType := AuthenticationDnsRecordsType{
+			ObjectType: types.ObjectType{AttrTypes: AuthenticationDnsRecordsValue{}.AttributeTypes(ctx)},
+		}
+		model.AuthenticationDnsRecords = types.ListNull(authDnsRecordsType)
 	}
 
 	// Set request-only fields to null if unknown (not returned in response)
