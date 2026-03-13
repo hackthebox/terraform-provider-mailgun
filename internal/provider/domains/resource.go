@@ -445,17 +445,18 @@ func setAuthenticationDNSRecords(ctx context.Context, records []mtypes.DNSRecord
 	model.AuthenticationDnsRecords = authList
 }
 
-// extendedDomainResponse extends the SDK's GetDomainResponse to capture
-// authentication_dns_records, which the mailgun-go SDK does not yet expose.
-type extendedDomainResponse struct {
-	mtypes.GetDomainResponse
-	AuthenticationDNSRecords []mtypes.DNSRecord `json:"authentication_dns_records"`
+// dmarcRecordResponse is the response from the Mailgun DMARC records API.
+// https://documentation.mailgun.com/docs/validate/oas/openapi-final/dmarc-reports/get-v1-dmarc-records-domain-
+type dmarcRecordResponse struct {
+	Entry      string `json:"entry"`
+	Current    string `json:"current"`
+	Configured bool   `json:"configured"`
 }
 
-// getAuthenticationDNSRecords fetches authentication DNS records (e.g. DMARC) directly
-// from the Mailgun API, since the mailgun-go SDK does not yet expose this field.
+// getAuthenticationDNSRecords fetches the Mailgun-generated DMARC record for a domain
+// via GET /v1/dmarc/records/{domain} and returns it as a DNSRecord ready for use in CF.
 func getAuthenticationDNSRecords(ctx context.Context, client *mailgun.Client, domainName string) ([]mtypes.DNSRecord, error) {
-	url := fmt.Sprintf("%s/v4/domains/%s", client.APIBase(), domainName)
+	url := fmt.Sprintf("%s/v1/dmarc/records/%s", client.APIBase(), domainName)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -469,12 +470,28 @@ func getAuthenticationDNSRecords(ctx context.Context, client *mailgun.Client, do
 	}
 	defer resp.Body.Close()
 
-	var result extendedDomainResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	var result dmarcRecordResponse
+	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
 
-	return result.AuthenticationDNSRecords, nil
+	if result.Entry == "" {
+		return nil, nil
+	}
+
+	valid := "unknown"
+	if result.Configured {
+		valid = "valid"
+	}
+
+	return []mtypes.DNSRecord{
+		{
+			RecordType: "TXT",
+			Name:       "_dmarc." + domainName,
+			Value:      result.Entry,
+			Valid:      valid,
+		},
+	}, nil
 }
 
 // mapDomainResponseToModel maps Mailgun API response to Terraform model
