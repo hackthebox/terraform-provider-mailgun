@@ -1,0 +1,11 @@
+```release-note:bug
+resource/mailgun_domain: Fixed `authentication_dns_records` to fetch DMARC records from correct Mailgun API endpoint (`GET /v1/dmarc/records/{domain}`)
+```
+
+```release-note:enhancement
+resource/mailgun_domain: `authentication_dns_records.valid` now reflects actual DNS configuration status from Mailgun DMARC API
+```
+
+```release-note:enhancement
+data-source/mailgun_domain: Improved `authentication_dns_records` attribute descriptions documenting DMARC-specific behavior
+```
