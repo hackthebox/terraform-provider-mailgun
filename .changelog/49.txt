@@ -1,0 +1,7 @@
+```release-note:enhancement
+resource/mailgun_domain: Added `authentication_dns_records` computed attribute exposing Mailgun-generated DMARC records
+```
+
+```release-note:enhancement
+data-source/mailgun_domain: Added `authentication_dns_records` computed attribute exposing Mailgun-generated DMARC records
+```
