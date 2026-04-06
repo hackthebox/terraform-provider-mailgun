@@ -191,13 +191,21 @@ func (r *SmtpCredentialResource) Update(ctx context.Context, req resource.Update
 	// Password is write-only and cannot be read back from the API. When it is
 	// unset in configuration for an imported resource, preserve the existing
 	// state and do not attempt a password rotation.
-	if plan.Password.IsNull() || plan.Password.IsUnknown() || password == "" {
+	if plan.Password.IsNull() || plan.Password.IsUnknown() {
 		plan.Password = state.Password
 		plan.Id = state.Id
 		plan.FullLogin = state.FullLogin
 		plan.CreatedAt = state.CreatedAt
 
 		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+		return
+	}
+
+	if password == "" {
+		resp.Diagnostics.AddError(
+			"Invalid Password",
+			"The password cannot be an empty string. Omit the attribute to preserve the existing imported password, or set a non-empty value to rotate it.",
+		)
 		return
 	}
 
