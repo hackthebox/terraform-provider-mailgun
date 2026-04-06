@@ -1,0 +1,3 @@
+```release-note:bug
+resource/mailgun_smtp_credential: Fixed imported SMTP credentials so they no longer require setting a synthetic password in configuration
+```
