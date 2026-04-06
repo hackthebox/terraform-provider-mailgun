@@ -127,6 +127,15 @@ func TestAccSmtpCredentialResource(t *testing.T) {
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"password"}, // Password cannot be imported
 			},
+			// Ensure an imported credential remains stable when password is omitted
+			{
+				Config: testAccSmtpCredentialImportedResourceConfig(domainName, loginName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.test", "domain", domainName),
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.test", "login", loginName),
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.test", "full_login", fmt.Sprintf("%s@%s", loginName, domainName)),
+				),
+			},
 			// Update password testing
 			{
 				Config: testAccSmtpCredentialResourceConfig(domainName, loginName, "updated-password-456"),
@@ -178,6 +187,19 @@ resource "mailgun_smtp_credential" "test" {
   password = "%s"
 }
 `, os.Getenv("MAILGUN_API_KEY"), domain, login, password)
+}
+
+func testAccSmtpCredentialImportedResourceConfig(domain, login string) string {
+	return fmt.Sprintf(`
+provider "mailgun" {
+  api_key = "%s"
+}
+
+resource "mailgun_smtp_credential" "test" {
+  domain = "%s"
+  login  = "%s"
+}
+`, os.Getenv("MAILGUN_API_KEY"), domain, login)
 }
 
 func testAccSmtpCredentialsListDataSourceConfig(domain string) string {
