@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
@@ -21,7 +22,7 @@ func TestSmtpCredentialResourceSchema_HasRequiredFields(t *testing.T) {
 	schema := smtp_credentials.SmtpCredentialResourceSchema()
 
 	// Verify key fields exist
-	requiredFields := []string{"domain", "login", "password"}
+	requiredFields := []string{"domain", "login"}
 	for _, field := range requiredFields {
 		if schema.Attributes[field] == nil {
 			t.Errorf("Schema missing required '%s' attribute", field)
@@ -38,6 +39,19 @@ func TestSmtpCredentialResourceSchema_HasRequiredFields(t *testing.T) {
 	// Verify description exists
 	if schema.Description == "" {
 		t.Error("Schema should have a description")
+	}
+
+	passwordAttr, ok := schema.Attributes["password"].(rschema.StringAttribute)
+	if !ok {
+		t.Fatal("Schema missing string 'password' attribute")
+	}
+
+	if !passwordAttr.Optional {
+		t.Error("Password should be optional to support imported credentials")
+	}
+
+	if !passwordAttr.Computed {
+		t.Error("Password should be computed to preserve state for imported credentials")
 	}
 }
 

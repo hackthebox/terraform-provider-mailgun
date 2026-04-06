@@ -87,7 +87,7 @@ func (r *SmtpCredentialResource) Create(ctx context.Context, req resource.Create
 		resp.Diagnostics.AddError("Missing Login", "The login is required to create an SMTP credential.")
 		return
 	}
-	if password == "" {
+	if plan.Password.IsNull() || plan.Password.IsUnknown() || password == "" {
 		resp.Diagnostics.AddError("Missing Password", "The password is required to create an SMTP credential.")
 		return
 	}
@@ -187,6 +187,19 @@ func (r *SmtpCredentialResource) Update(ctx context.Context, req resource.Update
 	domain := plan.Domain.ValueString()
 	login := plan.Login.ValueString()
 	password := plan.Password.ValueString()
+
+	// Password is write-only and cannot be read back from the API. When it is
+	// unset in configuration for an imported resource, preserve the existing
+	// state and do not attempt a password rotation.
+	if plan.Password.IsNull() || plan.Password.IsUnknown() || password == "" {
+		plan.Password = state.Password
+		plan.Id = state.Id
+		plan.FullLogin = state.FullLogin
+		plan.CreatedAt = state.CreatedAt
+
+		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+		return
+	}
 
 	// Create context with timeout
 	updateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -291,19 +304,12 @@ func (r *SmtpCredentialResource) ImportState(ctx context.Context, req resource.I
 		Login:     types.StringValue(login),
 		FullLogin: types.StringValue(credential.Login),
 		CreatedAt: types.StringValue(time.Time(credential.CreatedAt).Format(time.RFC3339)),
-		// Password cannot be imported - user must set it after import
+		// Password cannot be imported because the API never returns it.
 		Password: types.StringNull(),
 	}
 
 	// Save imported state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-
-	// Warn user that password needs to be set
-	resp.Diagnostics.AddWarning(
-		"Password Required After Import",
-		"The SMTP credential was imported successfully, but the password cannot be retrieved from the API. "+
-			"You must set the 'password' attribute in your configuration to manage this resource.",
-	)
 }
 
 // findCredential searches for a specific credential by domain and login

@@ -209,7 +209,7 @@ func (r *domainSendingKeyResource) ImportState(ctx context.Context, req resource
 		Id:          types.StringValue(apiKey.ID),
 		Domain:      types.StringValue(apiKey.DomainName),
 		Description: types.StringValue(apiKey.Description),
-		Secret:      types.StringValue(""), // Secret cannot be retrieved after creation
+		Secret:      types.StringNull(), // Secret cannot be retrieved after creation
 		CreatedAt:   types.StringValue(apiKey.CreatedAt.Format(time.RFC3339)),
 	}
 

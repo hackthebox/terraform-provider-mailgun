@@ -32,7 +32,10 @@ output "smtp_full_login" {
 
 - `domain` (String) The domain this SMTP credential belongs to.
 - `login` (String) The login name for SMTP authentication (without the @domain part). The full SMTP username will be 'login@domain'.
-- `password` (String, Sensitive) The password for SMTP authentication. This is write-only and cannot be read back from the API.
+
+### Optional
+
+- `password` (String, Sensitive) The password for SMTP authentication. This is write-only and cannot be read back from the API. Set this when creating a credential or when rotating the password of an imported credential. Leave it unset to keep the existing password of an imported credential.
 
 ### Read-Only
 
