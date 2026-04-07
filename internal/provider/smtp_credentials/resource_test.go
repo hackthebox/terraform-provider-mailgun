@@ -4,13 +4,16 @@
 package smtp_credentials_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/mailgun/mailgun-go/v5"
 
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/smtp_credentials"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/test_helpers"
@@ -150,6 +153,61 @@ func TestAccSmtpCredentialResource(t *testing.T) {
 	})
 }
 
+func TestAccSmtpCredentialResource_DriftSemantics(t *testing.T) {
+	if os.Getenv("MAILGUN_API_KEY") == "" {
+		t.Skip("MAILGUN_API_KEY environment variable is not set")
+	}
+
+	domainName := os.Getenv("MAILGUN_TEST_DOMAIN")
+	if domainName == "" {
+		t.Skip("MAILGUN_TEST_DOMAIN environment variable is not set")
+	}
+
+	apiKey := os.Getenv("MAILGUN_API_KEY")
+	client := mailgun.NewMailgun(apiKey)
+
+	managedLogin := test_helpers.RandomString(8)
+	siblingLogin := test_helpers.RandomString(8)
+
+	defer testAccDeleteSmtpCredential(client, domainName, siblingLogin)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
+		ProtoV6ProviderFactories: test_helpers.ProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckSmtpCredentialDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccSmtpCredentialResourceConfig(domainName, managedLogin, "initial-password-123"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.test", "domain", domainName),
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.test", "login", managedLogin),
+				),
+			},
+			{
+				PreConfig: func() {
+					testAccDeleteManagedSmtpCredential(t, client, domainName, managedLogin)
+				},
+				Config:             testAccSmtpCredentialResourceConfig(domainName, managedLogin, "initial-password-123"),
+				ExpectNonEmptyPlan: true,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.test", "domain", domainName),
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.test", "login", managedLogin),
+				),
+			},
+			{
+				PreConfig: func() {
+					testAccCreateUnmanagedSmtpCredential(t, client, domainName, siblingLogin, "sibling-password-123")
+				},
+				Config: testAccSmtpCredentialResourceConfig(domainName, managedLogin, "initial-password-123"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.test", "domain", domainName),
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.test", "login", managedLogin),
+				),
+			},
+		},
+	})
+}
+
 func TestAccSmtpCredentialsDataSource(t *testing.T) {
 	if os.Getenv("MAILGUN_API_KEY") == "" {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
@@ -218,4 +276,33 @@ func testAccCheckSmtpCredentialDestroy(s *terraform.State) error {
 	// Credential deletion is handled by the provider
 	// This is a placeholder for more complex destroy checks if needed
 	return nil
+}
+
+func testAccCreateUnmanagedSmtpCredential(t *testing.T, client *mailgun.Client, domain, login, password string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := client.CreateCredential(ctx, domain, login, password); err != nil {
+		t.Fatalf("failed creating unmanaged SMTP credential %s/%s: %v", domain, login, err)
+	}
+}
+
+func testAccDeleteManagedSmtpCredential(t *testing.T, client *mailgun.Client, domain, login string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := client.DeleteCredential(ctx, domain, login); err != nil {
+		t.Fatalf("failed deleting managed SMTP credential %s/%s: %v", domain, login, err)
+	}
+}
+
+func testAccDeleteSmtpCredential(client *mailgun.Client, domain, login string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_ = client.DeleteCredential(ctx, domain, login)
 }

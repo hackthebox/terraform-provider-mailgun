@@ -4,12 +4,15 @@
 package ip_allowlist_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/mailgun/mailgun-go/v5"
 
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/ip_allowlist"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/test_helpers"
@@ -132,6 +135,60 @@ func TestAccIPAllowlistResource(t *testing.T) {
 	})
 }
 
+func TestAccIPAllowlistResource_DriftSemantics(t *testing.T) {
+	if os.Getenv("MAILGUN_API_KEY") == "" {
+		t.Skip("MAILGUN_API_KEY environment variable is not set")
+	}
+
+	test_helpers.SetupIPAllowlistForTests(t)
+
+	apiKey := os.Getenv("MAILGUN_API_KEY")
+	client := ip_allowlist.NewIPAllowlistClient(mailgun.NewMailgun(apiKey))
+
+	managedIP := fmt.Sprintf("192.0.2.%d", test_helpers.RandomInt()%256)
+	managedDescription := fmt.Sprintf("test-allowlist-%s", test_helpers.RandomString(8))
+	siblingIP := fmt.Sprintf("198.51.100.%d", test_helpers.RandomInt()%256)
+	siblingDescription := fmt.Sprintf("test-allowlist-sibling-%s", test_helpers.RandomString(8))
+
+	defer testAccDeleteIPAllowlistEntry(client, siblingIP)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
+		ProtoV6ProviderFactories: test_helpers.ProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckIPAllowlistDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccIPAllowlistResourceConfig(managedIP, managedDescription),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_ip_allowlist.test", "address", managedIP),
+					resource.TestCheckResourceAttr("mailgun_ip_allowlist.test", "description", managedDescription),
+				),
+			},
+			{
+				PreConfig: func() {
+					testAccUpdateIPAllowlistDescription(t, client, managedIP, "manual-drift-description")
+				},
+				Config:             testAccIPAllowlistResourceConfig(managedIP, managedDescription),
+				ExpectNonEmptyPlan: true,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_ip_allowlist.test", "address", managedIP),
+					resource.TestCheckResourceAttr("mailgun_ip_allowlist.test", "description", managedDescription),
+				),
+			},
+			{
+				PreConfig: func() {
+					testAccCreateIPAllowlistEntry(t, client, siblingIP, siblingDescription)
+				},
+				Config: testAccIPAllowlistResourceConfig(managedIP, managedDescription),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_ip_allowlist.test", "address", managedIP),
+					resource.TestCheckResourceAttr("mailgun_ip_allowlist.test", "description", managedDescription),
+				),
+			},
+		},
+	})
+}
+
 func TestAccIPAllowlistResource_CIDR(t *testing.T) {
 	if os.Getenv("MAILGUN_API_KEY") == "" {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")
@@ -210,4 +267,33 @@ func testAccCheckIPAllowlistDestroy(s *terraform.State) error {
 	// IP allowlist deletion is handled by the provider
 	// This is a placeholder for more complex destroy checks if needed
 	return nil
+}
+
+func testAccCreateIPAllowlistEntry(t *testing.T, client *ip_allowlist.IPAllowlistClient, address, description string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := client.CreateIPAllowlistEntry(ctx, address, description); err != nil {
+		t.Fatalf("failed creating unmanaged IP allowlist entry %s: %v", address, err)
+	}
+}
+
+func testAccUpdateIPAllowlistDescription(t *testing.T, client *ip_allowlist.IPAllowlistClient, address, description string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := client.UpdateIPAllowlistEntry(ctx, address, description); err != nil {
+		t.Fatalf("failed updating IP allowlist entry %s: %v", address, err)
+	}
+}
+
+func testAccDeleteIPAllowlistEntry(client *ip_allowlist.IPAllowlistClient, address string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_ = client.DeleteIPAllowlistEntry(ctx, address)
 }
