@@ -1,3 +1,4 @@
+
 # Terraform Provider for Mailgun
 
 This Terraform provider allows you to manage [Mailgun](https://www.mailgun.com/) resources through Terraform. It provides the ability to create, read, update, and delete Mailgun domains, SMTP credentials, and API keys.
