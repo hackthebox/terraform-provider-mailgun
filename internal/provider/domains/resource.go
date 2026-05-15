@@ -516,7 +516,7 @@ func mapDomainResponseToModel(domainResp mtypes.GetDomainResponse, model DomainM
 	model.Wildcard = types.BoolValue(domainResp.Domain.Wildcard)
 	model.WebScheme = types.StringValue(domainResp.Domain.WebScheme)
 	model.WebPrefix = types.StringValue(domainResp.Domain.WebPrefix)
-	model.UseAutomaticSenderSecurity = types.BoolValue(domainResp.UseAutomaticSenderSecurity)
+	model.UseAutomaticSenderSecurity = types.BoolValue(domainResp.Domain.UseAutomaticSenderSecurity)
 
 	// Map DNS records from response
 	if len(domainResp.ReceivingDNSRecords) > 0 {
