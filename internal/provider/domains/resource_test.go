@@ -268,7 +268,6 @@ func TestAccDomainResource_AutomaticSenderSecurity(t *testing.T) {
 	}
 
 	domainName := test_helpers.RandomDomainName()
-
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
 		ProtoV6ProviderFactories: test_helpers.ProtoV6ProviderFactories,
