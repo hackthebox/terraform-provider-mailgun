@@ -518,7 +518,6 @@ func mapDomainResponseToModel(domainResp mtypes.GetDomainResponse, model DomainM
 	model.WebPrefix = types.StringValue(domainResp.Domain.WebPrefix)
 	model.UseAutomaticSenderSecurity = types.BoolValue(domainResp.Domain.UseAutomaticSenderSecurity)
 
-
 	// Map DNS records from response
 	if len(domainResp.ReceivingDNSRecords) > 0 {
 		receivingRecords := make([]ReceivingDnsRecordsValue, len(domainResp.ReceivingDNSRecords))
