@@ -1,0 +1,3 @@
+```release-note:bug
+Provider: Fixed inconsistent result on applying when use_automatic_sender_security = true
+```
