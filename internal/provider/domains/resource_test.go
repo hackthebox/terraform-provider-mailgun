@@ -4,11 +4,13 @@
 package domains_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
+	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -160,6 +162,42 @@ func TestDomainResourceSchema_HasRequiredFields(t *testing.T) {
 	}
 }
 
+// attrUsesStateForUnknown reports whether a schema attribute carries the
+// UseStateForUnknown plan modifier, detected via its stable description string.
+func attrUsesStateForUnknown(ctx context.Context, attr rschema.Attribute) bool {
+	const desc = "Once set, the value of this attribute in state will not change."
+	switch a := attr.(type) {
+	case rschema.StringAttribute:
+		for _, m := range a.PlanModifiers {
+			if m.Description(ctx) == desc {
+				return true
+			}
+		}
+	case rschema.BoolAttribute:
+		for _, m := range a.PlanModifiers {
+			if m.Description(ctx) == desc {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Optional+Computed attributes that force replacement must also use
+// UseStateForUnknown. Without it, the framework plans them as "known after
+// apply" on every in-place update, and RequiresReplace turns that null->unknown
+// transition into a spurious full replacement of the domain.
+func TestDomainResourceSchema_RequiresReplaceFieldsUseStateForUnknown(t *testing.T) {
+	ctx := t.Context()
+	s := domains.DomainResourceSchema()
+
+	for _, name := range []string{"spam_action", "wildcard", "force_dkim_authority", "dkim_key_size"} {
+		if !attrUsesStateForUnknown(ctx, s.Attributes[name]) {
+			t.Errorf("%s must use UseStateForUnknown to avoid forcing replacement on unrelated in-place updates", name)
+		}
+	}
+}
+
 // Mock test for SDK to Model conversion logic
 func TestSDKToTerraformConversion(t *testing.T) {
 	// Create a mock SDK response similar to what Mailgun API returns
@@ -227,24 +265,8 @@ func TestAccDomainResource(t *testing.T) {
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"smtp_password", "dkim_key_size", "force_dkim_authority"},
 			},
-		},
-	})
-}
-
-func TestAccDomainResource_AutomaticSenderSecurity(t *testing.T) {
-	if os.Getenv("MAILGUN_MULTI_DOMAIN") == "" {
-		t.Skip("Skipping automatic sender security test - most Mailgun test accounts have a 1 domain limit. Set MAILGUN_MULTI_DOMAIN=1 to run this test.")
-	}
-	if os.Getenv("MAILGUN_API_KEY") == "" {
-		t.Skip("MAILGUN_API_KEY environment variable is not set")
-	}
-
-	domainName := test_helpers.RandomDomainName()
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
-		ProtoV6ProviderFactories: test_helpers.ProtoV6ProviderFactories,
-		CheckDestroy:             testAccCheckDomainResourceDestroy,
-		Steps: []resource.TestStep{
+			// In-place update must not force a replacement (regression guard for the
+			// Optional+Computed+RequiresReplace plan-modifier bug).
 			{
 				Config: testAccDomainResourceConfigWithAutomaticSenderSecurity(domainName, true),
 				Check: resource.ComposeAggregateTestCheckFunc(

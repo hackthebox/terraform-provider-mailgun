@@ -42,7 +42,8 @@ func DomainResourceSchema() rschema.Schema {
 					stringvalidator.OneOf("disabled", "tag", "delete"),
 				},
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(), // SDK doesn't support updating spam_action
+					stringplanmodifier.UseStateForUnknown(), // keep prior value when unset so updates don't force replacement
+					stringplanmodifier.RequiresReplace(),    // SDK doesn't support updating spam_action
 				},
 			},
 			"wildcard": rschema.BoolAttribute{
@@ -50,7 +51,8 @@ func DomainResourceSchema() rschema.Schema {
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.RequiresReplace(), // SDK doesn't support updating wildcard
+					boolplanmodifier.UseStateForUnknown(), // keep prior value when unset so updates don't force replacement
+					boolplanmodifier.RequiresReplace(),    // SDK doesn't support updating wildcard
 				},
 			},
 			"force_dkim_authority": rschema.BoolAttribute{
@@ -58,7 +60,8 @@ func DomainResourceSchema() rschema.Schema {
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.RequiresReplace(), // SDK doesn't support updating force_dkim_authority
+					boolplanmodifier.UseStateForUnknown(), // keep prior value when unset so updates don't force replacement
+					boolplanmodifier.RequiresReplace(),    // SDK doesn't support updating force_dkim_authority
 				},
 			},
 			"dkim_key_size": rschema.StringAttribute{
@@ -69,7 +72,8 @@ func DomainResourceSchema() rschema.Schema {
 					stringvalidator.OneOf("1024", "2048"),
 				},
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(), // SDK doesn't support updating dkim_key_size
+					stringplanmodifier.UseStateForUnknown(), // keep prior value when unset so updates don't force replacement
+					stringplanmodifier.RequiresReplace(),    // SDK doesn't support updating dkim_key_size
 				},
 			},
 			"ips": rschema.StringAttribute{
