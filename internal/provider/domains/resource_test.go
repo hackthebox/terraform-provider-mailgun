@@ -192,7 +192,12 @@ func TestDomainResourceSchema_RequiresReplaceFieldsUseStateForUnknown(t *testing
 	s := domains.DomainResourceSchema()
 
 	for _, name := range []string{"spam_action", "wildcard", "force_dkim_authority", "dkim_key_size"} {
-		if !attrUsesStateForUnknown(ctx, s.Attributes[name]) {
+		attr, ok := s.Attributes[name]
+		if !ok {
+			t.Errorf("schema is missing attribute %q", name)
+			continue
+		}
+		if !attrUsesStateForUnknown(ctx, attr) {
 			t.Errorf("%s must use UseStateForUnknown to avoid forcing replacement on unrelated in-place updates", name)
 		}
 	}
