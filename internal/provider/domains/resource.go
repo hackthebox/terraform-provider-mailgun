@@ -172,6 +172,47 @@ func (r *DomainResource) Create(ctx context.Context, req resource.CreateRequest,
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
+const (
+	// domainReadMaxAttempts and domainReadRetryDelay bound how long a GET waits
+	// out Mailgun's eventual consistency: a GET can return 404 right after a
+	// successful write, before the domain is globally visible.
+	domainReadMaxAttempts = 5
+	domainReadRetryDelay  = 2 * time.Second
+)
+
+// getDomainWithRetry fetches a domain, retrying transient 404s up to attempts
+// times with a fixed delay between tries. Non-404 errors return immediately.
+func getDomainWithRetry(ctx context.Context, client *mailgun.Client, name string, attempts int, delay time.Duration) (mtypes.GetDomainResponse, error) {
+	var resp mtypes.GetDomainResponse
+	var err error
+	for attempt := range attempts {
+		if attempt > 0 {
+			if werr := sleepWithContext(ctx, delay); werr != nil {
+				return resp, werr
+			}
+		}
+		resp, err = client.GetDomain(ctx, name, nil)
+		if err == nil {
+			return resp, nil
+		}
+		if mailgun.GetStatusFromErr(err) != http.StatusNotFound {
+			return resp, err
+		}
+	}
+	return resp, err
+}
+
+// sleepWithContext waits for d or until ctx is cancelled, returning ctx.Err()
+// if it is cancelled first.
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(d):
+		return nil
+	}
+}
+
 // Read refreshes the Terraform state with the latest data.
 func (r *DomainResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state DomainModel
@@ -207,7 +248,7 @@ func (r *DomainResource) Read(ctx context.Context, req resource.ReadRequest, res
 	defer cancel()
 
 	// Get the domain via Mailgun API
-	domainResp, err := r.client.GetDomain(readCtx, domainName, nil)
+	domainResp, err := getDomainWithRetry(readCtx, r.client, domainName, domainReadMaxAttempts, domainReadRetryDelay)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Domain",
@@ -295,7 +336,7 @@ func (r *DomainResource) Update(ctx context.Context, req resource.UpdateRequest,
 	}
 
 	// Fetch the latest domain state
-	domainResp, err := r.client.GetDomain(updateCtx, domainName, nil)
+	domainResp, err := getDomainWithRetry(updateCtx, r.client, domainName, domainReadMaxAttempts, domainReadRetryDelay)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Domain After Update",
@@ -387,7 +428,7 @@ func (r *DomainResource) ImportState(ctx context.Context, req resource.ImportSta
 	defer cancel()
 
 	// Get the domain via Mailgun API
-	domainResp, err := r.client.GetDomain(importCtx, domainName, nil)
+	domainResp, err := getDomainWithRetry(importCtx, r.client, domainName, domainReadMaxAttempts, domainReadRetryDelay)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Importing Domain",
