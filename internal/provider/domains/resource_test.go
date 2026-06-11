@@ -4,13 +4,15 @@
 package domains_test
 
 import (
-	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
 	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -163,19 +165,21 @@ func TestDomainResourceSchema_HasRequiredFields(t *testing.T) {
 }
 
 // attrUsesStateForUnknown reports whether a schema attribute carries the
-// UseStateForUnknown plan modifier, detected via its stable description string.
-func attrUsesStateForUnknown(ctx context.Context, attr rschema.Attribute) bool {
-	const desc = "Once set, the value of this attribute in state will not change."
+// UseStateForUnknown plan modifier, detected by concrete modifier type so the
+// check does not depend on upstream description wording.
+func attrUsesStateForUnknown(attr rschema.Attribute) bool {
 	switch a := attr.(type) {
 	case rschema.StringAttribute:
+		want := reflect.TypeOf(stringplanmodifier.UseStateForUnknown())
 		for _, m := range a.PlanModifiers {
-			if m.Description(ctx) == desc {
+			if reflect.TypeOf(m) == want {
 				return true
 			}
 		}
 	case rschema.BoolAttribute:
+		want := reflect.TypeOf(boolplanmodifier.UseStateForUnknown())
 		for _, m := range a.PlanModifiers {
-			if m.Description(ctx) == desc {
+			if reflect.TypeOf(m) == want {
 				return true
 			}
 		}
@@ -188,7 +192,6 @@ func attrUsesStateForUnknown(ctx context.Context, attr rschema.Attribute) bool {
 // apply" on every in-place update, and RequiresReplace turns that null->unknown
 // transition into a spurious full replacement of the domain.
 func TestDomainResourceSchema_RequiresReplaceFieldsUseStateForUnknown(t *testing.T) {
-	ctx := t.Context()
 	s := domains.DomainResourceSchema()
 
 	for _, name := range []string{"spam_action", "wildcard", "force_dkim_authority", "dkim_key_size"} {
@@ -197,7 +200,7 @@ func TestDomainResourceSchema_RequiresReplaceFieldsUseStateForUnknown(t *testing
 			t.Errorf("schema is missing attribute %q", name)
 			continue
 		}
-		if !attrUsesStateForUnknown(ctx, attr) {
+		if !attrUsesStateForUnknown(attr) {
 			t.Errorf("%s must use UseStateForUnknown to avoid forcing replacement on unrelated in-place updates", name)
 		}
 	}
