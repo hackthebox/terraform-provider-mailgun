@@ -4,11 +4,13 @@
 package domains_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
+	rschema "github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
@@ -160,6 +162,50 @@ func TestDomainResourceSchema_HasRequiredFields(t *testing.T) {
 	}
 }
 
+// attrUsesStateForUnknown reports whether a schema attribute carries the
+// UseStateForUnknown plan modifier, detected via its description string.
+// Behavior is also guarded end-to-end by the in-place-update acceptance test;
+// this is the fast, no-API canary that additionally covers spam_action and
+// wildcard (which that test always sets in config, so it never exercises them).
+func attrUsesStateForUnknown(ctx context.Context, attr rschema.Attribute) bool {
+	const desc = "Once set, the value of this attribute in state will not change."
+	switch a := attr.(type) {
+	case rschema.StringAttribute:
+		for _, m := range a.PlanModifiers {
+			if m.Description(ctx) == desc {
+				return true
+			}
+		}
+	case rschema.BoolAttribute:
+		for _, m := range a.PlanModifiers {
+			if m.Description(ctx) == desc {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Optional+Computed attributes that force replacement must also use
+// UseStateForUnknown. Without it, the framework plans them as "known after
+// apply" on every in-place update, and RequiresReplace turns that null->unknown
+// transition into a spurious full replacement of the domain.
+func TestDomainResourceSchema_RequiresReplaceFieldsUseStateForUnknown(t *testing.T) {
+	ctx := t.Context()
+	s := domains.DomainResourceSchema()
+
+	for _, name := range []string{"spam_action", "wildcard", "force_dkim_authority", "dkim_key_size"} {
+		attr, ok := s.Attributes[name]
+		if !ok {
+			t.Errorf("schema is missing attribute %q", name)
+			continue
+		}
+		if !attrUsesStateForUnknown(ctx, attr) {
+			t.Errorf("%s must use UseStateForUnknown to avoid forcing replacement on unrelated in-place updates", name)
+		}
+	}
+}
+
 // Mock test for SDK to Model conversion logic
 func TestSDKToTerraformConversion(t *testing.T) {
 	// Create a mock SDK response similar to what Mailgun API returns
@@ -227,8 +273,29 @@ func TestAccDomainResource(t *testing.T) {
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"smtp_password", "dkim_key_size", "force_dkim_authority"},
 			},
-			// Delete testing automatically occurs in TestCase
-			// Note: spam_action and wildcard require replacement, so we skip update testing for those
+			// In-place update must not force a replacement (regression guard for the
+			// Optional+Computed+RequiresReplace plan-modifier bug).
+			{
+				Config: testAccDomainResourceConfigWithAutomaticSenderSecurity(domainName, true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_domain.test", "name", domainName),
+					resource.TestCheckResourceAttr("mailgun_domain.test", "use_automatic_sender_security", "true"),
+					resource.TestCheckResourceAttrSet("mailgun_domain.test", "id"),
+					resource.TestCheckResourceAttrSet("mailgun_domain.test", "state"),
+					resource.TestCheckResourceAttrSet("mailgun_domain.test", "created_at"),
+				),
+			},
+			{
+				Config:             testAccDomainResourceConfigWithAutomaticSenderSecurity(domainName, true),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: false,
+			},
+			{
+				ResourceName:            "mailgun_domain.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"smtp_password", "dkim_key_size", "force_dkim_authority"},
+			},
 		},
 	})
 }
@@ -261,57 +328,17 @@ func TestAccDomainResource_Wildcard(t *testing.T) {
 	})
 }
 
-func TestAccDomainResource_AutomaticSenderSecurity(t *testing.T) {
-	// Skip if MAILGUN_API_KEY is not set
-	if os.Getenv("MAILGUN_API_KEY") == "" {
-		t.Skip("MAILGUN_API_KEY environment variable is not set")
-	}
-
-	domainName := test_helpers.RandomDomainName()
-	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
-		ProtoV6ProviderFactories: test_helpers.ProtoV6ProviderFactories,
-		CheckDestroy:             testAccCheckDomainResourceDestroy,
-		Steps: []resource.TestStep{
-			// Create with use_automatic_sender_security = true and verify it is applied
-			{
-				Config: testAccDomainResourceConfigWithAutomaticSenderSecurity(domainName, true),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("mailgun_domain.test_ass", "name", domainName),
-					resource.TestCheckResourceAttr("mailgun_domain.test_ass", "use_automatic_sender_security", "true"),
-					resource.TestCheckResourceAttrSet("mailgun_domain.test_ass", "id"),
-					resource.TestCheckResourceAttrSet("mailgun_domain.test_ass", "state"),
-					resource.TestCheckResourceAttrSet("mailgun_domain.test_ass", "created_at"),
-				),
-			},
-			// Re-apply the same config and verify there is no diff (idempotency check)
-			{
-				Config:             testAccDomainResourceConfigWithAutomaticSenderSecurity(domainName, true),
-				PlanOnly:           true,
-				ExpectNonEmptyPlan: false,
-			},
-			// ImportState testing
-			{
-				ResourceName:            "mailgun_domain.test_ass",
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"smtp_password", "dkim_key_size", "force_dkim_authority"},
-			},
-		},
-	})
-}
-
 func testAccDomainResourceConfigWithAutomaticSenderSecurity(domainName string, useAutomaticSenderSecurity bool) string {
 	return fmt.Sprintf(`
 provider "mailgun" {
   api_key = "%s"
 }
 
-resource "mailgun_domain" "test_ass" {
+resource "mailgun_domain" "test" {
   name                          = "%s"
   spam_action                   = "disabled"
   wildcard                      = false
-  web_scheme                    = "https"
+  web_scheme                    = "http"
   use_automatic_sender_security = %t
 }
 `, os.Getenv("MAILGUN_API_KEY"), domainName, useAutomaticSenderSecurity)
