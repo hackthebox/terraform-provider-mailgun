@@ -8,10 +8,27 @@ updates:
     schedule:
       # Check for updates to Go modules every weekday
       interval: "daily"
+    groups:
+      # The terraform-plugin-* packages are interdependent and share a minimum
+      # Go version, so they must be bumped together (a lone bump fails to build).
+      terraform-plugin:
+        patterns:
+          - "github.com/hashicorp/terraform-plugin-*"
+      # Everything else in the main module (runtime SDK + indirect deps).
+      go-modules:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "github.com/hashicorp/terraform-plugin-*"
   - package-ecosystem: "gomod"
     directory: "/tools"
     schedule:
       interval: "daily"
+    # /tools deps all touch the same go.sum; grouping avoids a rebase cascade.
+    groups:
+      tools:
+        patterns:
+          - "*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -19,3 +36,7 @@ updates:
     # TODO: Dependabot only updates hashicorp GHAs in the template repository, the following lines can be removed for consumers of this template
     allow:
       - dependency-name: "hashicorp/*"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
