@@ -7,7 +7,10 @@ project {
 
   # (OPTIONAL) Represents the year that the project initially began
   # Default: <the year the repo was first created>
-  # copyright_year = 0
+  # Pinned so the start year does not depend on git history. copywrite 0.25.x
+  # derives it from GetRepoFirstCommitYear(), which returns 0 in CI's PR-merge
+  # checkout, making `make generate` non-deterministic between local and CI.
+  copyright_year = 2025
 
   # (OPTIONAL) A list of globs that should not have copyright or license headers .
   # Supports doublestar glob patterns for more flexibility in defining which
