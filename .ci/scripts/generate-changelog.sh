@@ -33,7 +33,7 @@ echo "Generating changelog from $PREVIOUS_RELEASE_SHA to $TARGET_SHA"
 CHANGELOG=$(changelog-build -this-release "$TARGET_SHA" \
                       -last-release "$PREVIOUS_RELEASE_SHA" \
                       -git-dir "$__root" \
-                      -entries-dir "$__root/.changelog" \
+                      -entries-dir ".changelog" \
                       -changelog-template "$__dir/changelog.tmpl" \
                       -note-template "$__dir/release-note.tmpl" \
                       -local-fs)

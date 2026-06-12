@@ -1,3 +1,19 @@
+## 1.0.6 (June 12, 2026)
+
+BUG FIXES:
+* resource/mailgun_domain: Fixed spurious domain replacement on in-place updates. The `spam_action`, `wildcard`, `force_dkim_authority`, and `dkim_key_size` attributes (Optional+Computed+RequiresReplace) lacked `UseStateForUnknown`, so any update to an existing domain planned them as "known after apply" and forced a full destroy/recreate. ([#61](https://github.com/hackthebox/terraform-provider-mailgun/pull/61))
+* resource/mailgun_domain: Retry transient 404s when reading a domain to tolerate Mailgun's eventual consistency (a GET can 404 immediately after a successful create/update), instead of failing the read. ([#62](https://github.com/hackthebox/terraform-provider-mailgun/pull/62))
+
+## 1.0.5 (June 1, 2026)
+
+BUG FIXES:
+* provider: Fixed inconsistent result on applying when `use_automatic_sender_security = true` ([#53](https://github.com/hackthebox/terraform-provider-mailgun/pull/53))
+
+## 1.0.4 (April 6, 2026)
+
+BUG FIXES:
+* resource/mailgun_smtp_credential: Fixed imported SMTP credentials so they no longer require setting a synthetic password in configuration ([#51](https://github.com/hackthebox/terraform-provider-mailgun/pull/51))
+
 ## 1.0.3 (March 13, 2026)
 
 ENHANCEMENTS:
