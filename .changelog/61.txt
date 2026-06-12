@@ -1,3 +1,0 @@
-```release-note:bug
-resource/mailgun_domain: Fixed spurious domain replacement on in-place updates. The `spam_action`, `wildcard`, `force_dkim_authority`, and `dkim_key_size` attributes (Optional+Computed+RequiresReplace) lacked `UseStateForUnknown`, so any update to an existing domain planned them as "known after apply" and forced a full destroy/recreate.
-```

@@ -1,7 +1,0 @@
-```release-note:new-resource
-mailgun_webhook
-```
-
-```release-note:new-data-source
-mailgun_webhooks
-```
