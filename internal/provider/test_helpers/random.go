@@ -32,3 +32,20 @@ func RandomString(length int) string {
 func RandomName(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, RandomInt())
 }
+
+var docRangePrefixes = []string{"192.0.2", "198.51.100", "203.0.113"}
+
+// RandomDocIP returns a random IPv4 address in an RFC 5737 documentation range,
+// giving 768 distinct values to avoid collisions on the shared test account.
+func RandomDocIP() string {
+	prefix := docRangePrefixes[rand.Intn(len(docRangePrefixes))]
+	return fmt.Sprintf("%s.%d", prefix, rand.Intn(256))
+}
+
+// RandomDocCIDR returns a random aligned /30 CIDR in an RFC 5737 documentation
+// range, giving 192 distinct values to avoid collisions on the shared test account.
+func RandomDocCIDR() string {
+	prefix := docRangePrefixes[rand.Intn(len(docRangePrefixes))]
+	base := rand.Intn(64) * 4
+	return fmt.Sprintf("%s.%d/30", prefix, base)
+}

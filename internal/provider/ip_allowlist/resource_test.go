@@ -4,12 +4,15 @@
 package ip_allowlist_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/mailgun/mailgun-go/v5"
 
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/ip_allowlist"
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/test_helpers"
@@ -94,10 +97,10 @@ func TestAccIPAllowlistResource(t *testing.T) {
 	// Setup: Add test runner's IP to allowlist (removed automatically via t.Cleanup)
 	test_helpers.SetupIPAllowlistForTests(t)
 
-	// Use a test IP address that won't affect real access
-	// Using documentation range (RFC 5737)
-	testIP := fmt.Sprintf("192.0.2.%d", test_helpers.RandomInt()%256)
+	testIP := test_helpers.RandomDocIP()
 	description := fmt.Sprintf("test-allowlist-%s", test_helpers.RandomString(8))
+
+	ensureIPAllowlistAbsent(t, testIP)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
@@ -140,9 +143,10 @@ func TestAccIPAllowlistResource_CIDR(t *testing.T) {
 	// Setup: Add test runner's IP to allowlist (removed automatically via t.Cleanup)
 	test_helpers.SetupIPAllowlistForTests(t)
 
-	// Use documentation range CIDR (RFC 5737)
-	testCIDR := "198.51.100.0/24"
+	testCIDR := test_helpers.RandomDocCIDR()
 	description := fmt.Sprintf("test-cidr-%s", test_helpers.RandomString(8))
+
+	ensureIPAllowlistAbsent(t, testCIDR)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
@@ -204,6 +208,26 @@ provider "mailgun" {
 data "mailgun_ip_allowlist" "test" {
 }
 `, os.Getenv("MAILGUN_API_KEY"))
+}
+
+// ensureIPAllowlistAbsent deletes any existing allowlist entry at address so a
+// leftover orphan from a crashed run cannot make the test's create return 409.
+// Best-effort: failures are logged, not fatal.
+func ensureIPAllowlistAbsent(t *testing.T, address string) {
+	t.Helper()
+
+	mg := mailgun.NewMailgun(os.Getenv("MAILGUN_API_KEY"))
+	client := ip_allowlist.NewIPAllowlistClient(mg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if _, err := client.GetIPAllowlistEntry(ctx, address); err != nil {
+		return
+	}
+	if err := client.DeleteIPAllowlistEntry(ctx, address); err != nil {
+		t.Logf("warning: failed to pre-delete leftover allowlist entry %s: %v", address, err)
+	}
 }
 
 func testAccCheckIPAllowlistDestroy(s *terraform.State) error {
