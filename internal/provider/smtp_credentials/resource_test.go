@@ -89,6 +89,39 @@ func TestSmtpCredentialsListDataSourceSchema_HasRequiredFields(t *testing.T) {
 	}
 }
 
+func TestSmtpCredentialResourceSchema_WriteOnlyPassword(t *testing.T) {
+	schema := smtp_credentials.SmtpCredentialResourceSchema()
+
+	legacy, ok := schema.Attributes["password"].(rschema.StringAttribute)
+	if !ok {
+		t.Fatal("Schema missing string 'password' attribute")
+	}
+	if legacy.DeprecationMessage == "" {
+		t.Error("password should be deprecated in favor of password_wo")
+	}
+
+	wo, ok := schema.Attributes["password_wo"].(rschema.StringAttribute)
+	if !ok {
+		t.Fatal("Schema missing string 'password_wo' attribute")
+	}
+	if !wo.WriteOnly {
+		t.Error("password_wo must be WriteOnly")
+	}
+	if !wo.Optional {
+		t.Error("password_wo must be Optional")
+	}
+	if !wo.Sensitive {
+		t.Error("password_wo must be Sensitive")
+	}
+	if wo.Computed {
+		t.Error("password_wo must not be Computed (WriteOnly forbids Computed)")
+	}
+
+	if _, ok := schema.Attributes["password_wo_version"].(rschema.Int64Attribute); !ok {
+		t.Fatal("Schema missing Int64 'password_wo_version' attribute")
+	}
+}
+
 // Acceptance Tests - These tests require MAILGUN_API_KEY and make real API calls
 
 func TestAccSmtpCredentialResource(t *testing.T) {
