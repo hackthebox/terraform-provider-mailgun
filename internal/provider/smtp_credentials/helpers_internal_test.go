@@ -171,3 +171,86 @@ func TestWriteOnlyRotationRequested(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveUpdatePassword(t *testing.T) {
+	tests := []struct {
+		name         string
+		passwordWO   types.String
+		planPW       types.String
+		planVersion  types.Int64
+		stateVersion types.Int64
+		wantPW       string
+		wantRotate   bool
+		wantErr      string
+	}{
+		{
+			name:         "write-only with version bump rotates",
+			passwordWO:   types.StringValue("wo-secret"),
+			planPW:       types.StringNull(),
+			planVersion:  types.Int64Value(2),
+			stateVersion: types.Int64Value(1),
+			wantPW:       "wo-secret",
+			wantRotate:   true,
+			wantErr:      "",
+		},
+		{
+			name:         "write-only without version bump skips rotation",
+			passwordWO:   types.StringValue("wo-secret"),
+			planPW:       types.StringNull(),
+			planVersion:  types.Int64Value(1),
+			stateVersion: types.Int64Value(1),
+			wantPW:       "",
+			wantRotate:   false,
+			wantErr:      "",
+		},
+		{
+			name:         "legacy null preserves imported state",
+			passwordWO:   types.StringNull(),
+			planPW:       types.StringNull(),
+			planVersion:  types.Int64Null(),
+			stateVersion: types.Int64Null(),
+			wantPW:       "",
+			wantRotate:   false,
+			wantErr:      "",
+		},
+		{
+			name:         "legacy empty string is an error",
+			passwordWO:   types.StringNull(),
+			planPW:       types.StringValue(""),
+			planVersion:  types.Int64Null(),
+			stateVersion: types.Int64Null(),
+			wantPW:       "",
+			wantRotate:   false,
+			wantErr:      "Invalid Password",
+		},
+		{
+			name:         "legacy non-empty rotates",
+			passwordWO:   types.StringNull(),
+			planPW:       types.StringValue("newpass"),
+			planVersion:  types.Int64Null(),
+			stateVersion: types.Int64Null(),
+			wantPW:       "newpass",
+			wantRotate:   true,
+			wantErr:      "",
+		},
+		{
+			name:         "write-only unknown falls through to legacy",
+			passwordWO:   types.StringUnknown(),
+			planPW:       types.StringValue("legacy"),
+			planVersion:  types.Int64Null(),
+			stateVersion: types.Int64Null(),
+			wantPW:       "legacy",
+			wantRotate:   true,
+			wantErr:      "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotPW, gotRotate, gotErr := resolveUpdatePassword(tt.passwordWO, tt.planPW, tt.planVersion, tt.stateVersion)
+			if gotPW != tt.wantPW || gotRotate != tt.wantRotate || gotErr != tt.wantErr {
+				t.Errorf("resolveUpdatePassword() = (%q, %v, %q), want (%q, %v, %q)",
+					gotPW, gotRotate, gotErr, tt.wantPW, tt.wantRotate, tt.wantErr)
+			}
+		})
+	}
+}
