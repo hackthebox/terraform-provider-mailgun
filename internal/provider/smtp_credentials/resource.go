@@ -356,6 +356,23 @@ func findEventually(ctx context.Context, attempts int, delay time.Duration, find
 	}
 }
 
+// passwordForCreate returns the password to use at create time, preferring the
+// write-only value over the deprecated stateful password. ok is false when
+// neither source provides a usable (known, non-empty) password.
+func passwordForCreate(passwordWO, legacy types.String) (password string, ok bool) {
+	if !passwordWO.IsNull() && !passwordWO.IsUnknown() {
+		return passwordWO.ValueString(), true
+	}
+	if !legacy.IsNull() && !legacy.IsUnknown() && legacy.ValueString() != "" {
+		return legacy.ValueString(), true
+	}
+	return "", false
+}
+
+func writeOnlyRotationRequested(planVersion, stateVersion types.Int64) bool {
+	return !planVersion.IsNull() && !planVersion.Equal(stateVersion)
+}
+
 // findCredential searches for a specific credential by domain and login
 func (r *SmtpCredentialResource) findCredential(ctx context.Context, domain, login string) (*mtypes.Credential, error) {
 	// Create context with timeout

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5/mtypes"
 )
 
@@ -123,5 +124,50 @@ func TestCreatedAtLookupBudgetCoversItsAttempts(t *testing.T) {
 	// The budget has to outlast the waits it wraps, or later attempts never happen.
 	if minimum := time.Duration(createdAtLookupAttempts-1) * createdAtLookupDelay; createdAtLookupBudget <= minimum {
 		t.Errorf("createdAtLookupBudget = %v, must exceed the %v spent waiting between attempts", createdAtLookupBudget, minimum)
+	}
+}
+
+func TestPasswordForCreate(t *testing.T) {
+	tests := []struct {
+		name       string
+		passwordWO types.String
+		legacy     types.String
+		wantPass   string
+		wantOK     bool
+	}{
+		{"write-only preferred", types.StringValue("wo-secret"), types.StringValue("legacy"), "wo-secret", true},
+		{"legacy when no wo", types.StringNull(), types.StringValue("legacy"), "legacy", true},
+		{"neither set", types.StringNull(), types.StringNull(), "", false},
+		{"legacy unknown ignored", types.StringNull(), types.StringUnknown(), "", false},
+		{"wo unknown falls back to legacy", types.StringUnknown(), types.StringValue("legacy"), "legacy", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotPass, gotOK := passwordForCreate(tt.passwordWO, tt.legacy)
+			if gotPass != tt.wantPass || gotOK != tt.wantOK {
+				t.Errorf("passwordForCreate() = (%q, %v), want (%q, %v)", gotPass, gotOK, tt.wantPass, tt.wantOK)
+			}
+		})
+	}
+}
+
+func TestWriteOnlyRotationRequested(t *testing.T) {
+	tests := []struct {
+		name  string
+		plan  types.Int64
+		state types.Int64
+		want  bool
+	}{
+		{"version bumped", types.Int64Value(2), types.Int64Value(1), true},
+		{"version unchanged", types.Int64Value(1), types.Int64Value(1), false},
+		{"first set from null state", types.Int64Value(1), types.Int64Null(), true},
+		{"no version in plan", types.Int64Null(), types.Int64Null(), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := writeOnlyRotationRequested(tt.plan, tt.state); got != tt.want {
+				t.Errorf("writeOnlyRotationRequested() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
