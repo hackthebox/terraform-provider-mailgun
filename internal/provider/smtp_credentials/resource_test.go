@@ -252,3 +252,57 @@ func testAccCheckSmtpCredentialDestroy(s *terraform.State) error {
 	// This is a placeholder for more complex destroy checks if needed
 	return nil
 }
+
+func testAccSmtpCredentialWriteOnlyConfig(domain, login, password string, version int) string {
+	return fmt.Sprintf(`
+provider "mailgun" {
+  api_key = "%s"
+}
+
+resource "mailgun_smtp_credential" "wo" {
+  domain              = "%s"
+  login               = "%s"
+  password_wo         = "%s"
+  password_wo_version = %d
+}
+`, os.Getenv("MAILGUN_API_KEY"), domain, login, password, version)
+}
+
+func TestAccSmtpCredentialResource_WriteOnly(t *testing.T) {
+	if os.Getenv("MAILGUN_API_KEY") == "" {
+		t.Skip("MAILGUN_API_KEY environment variable is not set")
+	}
+	domainName := os.Getenv("MAILGUN_TEST_DOMAIN")
+	if domainName == "" {
+		t.Skip("MAILGUN_TEST_DOMAIN environment variable is not set")
+	}
+
+	loginName := test_helpers.RandomString(8)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
+		ProtoV6ProviderFactories: test_helpers.ProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckSmtpCredentialDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccSmtpCredentialWriteOnlyConfig(domainName, loginName, "wo-initial-123", 1),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.wo", "login", loginName),
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.wo", "password_wo_version", "1"),
+					resource.TestCheckNoResourceAttr("mailgun_smtp_credential.wo", "password_wo"),
+					resource.TestCheckResourceAttrSet("mailgun_smtp_credential.wo", "created_at"),
+				),
+			},
+			{
+				Config:   testAccSmtpCredentialWriteOnlyConfig(domainName, loginName, "wo-initial-123", 1),
+				PlanOnly: true,
+			},
+			{
+				Config: testAccSmtpCredentialWriteOnlyConfig(domainName, loginName, "wo-rotated-456", 2),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.wo", "password_wo_version", "2"),
+				),
+			},
+		},
+	})
+}
