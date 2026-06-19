@@ -12,7 +12,8 @@ output "smtp_full_login" {
 
 # Write-only password (recommended). Requires Terraform CLI >= 1.11.
 # The secret is never written to Terraform state. Bump password_wo_version to rotate.
-resource "random_password" "smtp" {
+# An ephemeral random_password keeps the generated secret out of state entirely.
+ephemeral "random_password" "smtp" {
   length  = 24
   special = false
 }
@@ -20,6 +21,6 @@ resource "random_password" "smtp" {
 resource "mailgun_smtp_credential" "app_wo" {
   domain              = "mail.example.com"
   login               = "app-mailer-wo"
-  password_wo         = random_password.smtp.result
+  password_wo         = ephemeral.random_password.smtp.result
   password_wo_version = 1
 }

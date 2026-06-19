@@ -26,7 +26,8 @@ output "smtp_full_login" {
 
 # Write-only password (recommended). Requires Terraform CLI >= 1.11.
 # The secret is never written to Terraform state. Bump password_wo_version to rotate.
-resource "random_password" "smtp" {
+# An ephemeral random_password keeps the generated secret out of state entirely.
+ephemeral "random_password" "smtp" {
   length  = 24
   special = false
 }
@@ -34,7 +35,7 @@ resource "random_password" "smtp" {
 resource "mailgun_smtp_credential" "app_wo" {
   domain              = "mail.example.com"
   login               = "app-mailer-wo"
-  password_wo         = random_password.smtp.result
+  password_wo         = ephemeral.random_password.smtp.result
   password_wo_version = 1
 }
 ```
@@ -62,9 +63,9 @@ The legacy `password` argument is deprecated and will be removed in a future maj
 
 > **NOTE**: [Write-only arguments](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments) are supported in Terraform 1.11 and later.
 
-- `password` (String, Sensitive, Deprecated) The password for SMTP authentication. This is write-only and cannot be read back from the API. Set this when creating a credential or when rotating the password of an imported credential. Leave it unset to keep the existing password of an imported credential.
-- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for SMTP authentication. The value is never stored in Terraform state. Set it together with password_wo_version and increment the version to rotate the password. Requires Terraform CLI >= 1.11.
-- `password_wo_version` (Number) Version counter for password_wo. Increment this value to rotate the write-only password. Required when password_wo is set.
+- `password` (String, Sensitive, Deprecated) The password for SMTP authentication. This is write-only and cannot be read back from the API. Set this when creating credentials or when rotating the password. Leave it unset to maintain the existing password during import.
+- `password_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Write-only password for SMTP authentication. The value is never stored in Terraform state. Always set it together with password_wo_version.
+- `password_wo_version` (Number) Version counter for password_wo. Increment this value to rotate the write-only password. **Required** when password_wo is set.
 
 ### Read-Only
 

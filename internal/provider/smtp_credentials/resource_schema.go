@@ -43,8 +43,8 @@ func SmtpCredentialResourceSchema() rschema.Schema {
 			},
 			"password": rschema.StringAttribute{
 				Description: "The password for SMTP authentication. This is write-only and cannot be read back from the API. " +
-					"Set this when creating a credential or when rotating the password of an imported credential. " +
-					"Leave it unset to keep the existing password of an imported credential.",
+					"Set this when creating credentials or when rotating the password. " +
+					"Leave it unset to maintain the existing password during import.",
 				DeprecationMessage: "Use password_wo and password_wo_version instead. The password argument stores the " +
 					"secret in Terraform state; it remains supported for backward compatibility but will be removed in a future major release.",
 				Optional:  true,
@@ -60,7 +60,7 @@ func SmtpCredentialResourceSchema() rschema.Schema {
 			},
 			"password_wo": rschema.StringAttribute{
 				Description: "Write-only password for SMTP authentication. The value is never stored in Terraform state. " +
-					"Set it together with password_wo_version and increment the version to rotate the password. Requires Terraform CLI >= 1.11.",
+					"Always set it together with password_wo_version.",
 				Optional:  true,
 				Sensitive: true,
 				WriteOnly: true,
@@ -71,7 +71,7 @@ func SmtpCredentialResourceSchema() rschema.Schema {
 				},
 			},
 			"password_wo_version": rschema.Int64Attribute{
-				Description: "Version counter for password_wo. Increment this value to rotate the write-only password. Required when password_wo is set.",
+				Description: "Version counter for password_wo. Increment this value to rotate the write-only password. **Required** when password_wo is set.",
 				Optional:    true,
 				Validators: []validator.Int64{
 					int64validator.AlsoRequires(path.MatchRoot("password_wo")),
