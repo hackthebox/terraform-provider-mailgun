@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"net/http"
+	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -73,7 +74,7 @@ func (p *mailgunProvider) Schema(_ context.Context, _ provider.SchemaRequest, re
 		Attributes: map[string]schema.Attribute{
 			"api_key": schema.StringAttribute{
 				Description: "Mailgun API key for authentication. Can also be set via MAILGUN_API_KEY environment variable.",
-				Required:    true,
+				Optional:    true,
 				Sensitive:   true,
 			},
 			"region": schema.StringAttribute{
@@ -97,12 +98,18 @@ func (p *mailgunProvider) Configure(ctx context.Context, req provider.ConfigureR
 		return
 	}
 
-	if config.ApiKey.IsNull() {
+	apiKey := config.ApiKey.ValueString()
+	if apiKey == "" {
+		apiKey = os.Getenv("MAILGUN_API_KEY")
+	}
+
+	if apiKey == "" {
 		resp.Diagnostics.AddError(
 			"Missing API Key Configuration",
 			"While configuring the provider, the API key was not found in "+
 				"the Mailgun provider configuration. "+
-				"Please set the api_key value in the provider configuration.",
+				"Please set the api_key value in the provider configuration "+
+				"or MAILGUN_API_KEY environment variable.",
 		)
 		return
 	}
@@ -114,7 +121,7 @@ func (p *mailgunProvider) Configure(ctx context.Context, req provider.ConfigureR
 	}
 
 	// Create Mailgun client (v5 API)
-	mg := mailgun.NewMailgun(config.ApiKey.ValueString())
+	mg := mailgun.NewMailgun(apiKey)
 	mg.SetHTTPClient(&http.Client{Transport: newRateLimitRetryTransport()})
 
 	// Set region if provided

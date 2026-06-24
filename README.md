@@ -38,7 +38,7 @@ provider "mailgun" {
 
 | Parameter | Description | Required | Default |
 |-----------|-------------|----------|---------|
-| `api_key` | Your Mailgun API key. Can also be set via `MAILGUN_API_KEY` environment variable | Yes | - |
+| `api_key` | Your Mailgun API key. Can also be set via `MAILGUN_API_KEY` environment variable | No (if `MAILGUN_API_KEY` is set) | - |
 | `region` | The Mailgun region (`US` or `EU`) | No | `US` |
 | `endpoint` | Custom Mailgun API endpoint (overrides region) | No | - |
 
