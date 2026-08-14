@@ -89,3 +89,19 @@ func TestFindEventuallyAbortsOnCancelledContext(t *testing.T) {
 		t.Errorf("calls = %d, want 1 before the context cancels the wait", calls)
 	}
 }
+
+func TestFindEventuallyDefaultsToFourAttempts(t *testing.T) {
+	calls := 0
+
+	_, err := findEventually(context.Background(), createdAtLookupAttempts, 0, func() (*mtypes.Credential, error) {
+		calls++
+		return nil, errors.New("credential not found")
+	})
+
+	if err == nil {
+		t.Fatal("expected the lookup to give up")
+	}
+	if calls != 4 {
+		t.Errorf("calls = %d, want 4: the package default budget", calls)
+	}
+}

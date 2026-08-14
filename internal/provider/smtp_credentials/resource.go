@@ -331,15 +331,13 @@ func (r *SmtpCredentialResource) ImportState(ctx context.Context, req resource.I
 // credential listing lags a create, so the first lookup routinely misses one that
 // definitely exists.
 func findEventually(ctx context.Context, attempts int, delay time.Duration, find func() (*mtypes.Credential, error)) (*mtypes.Credential, error) {
-	var err error
-
-	for attempt := 0; attempt < attempts; attempt++ {
-		var credential *mtypes.Credential
-		if credential, err = find(); err == nil {
+	for attempt := 1; ; attempt++ {
+		credential, err := find()
+		if err == nil {
 			return credential, nil
 		}
-		if attempt == attempts-1 {
-			break
+		if attempt >= attempts {
+			return nil, err
 		}
 
 		timer := time.NewTimer(delay)
@@ -350,8 +348,6 @@ func findEventually(ctx context.Context, attempts int, delay time.Duration, find
 		case <-timer.C:
 		}
 	}
-
-	return nil, err
 }
 
 // findCredential searches for a specific credential by domain and login
