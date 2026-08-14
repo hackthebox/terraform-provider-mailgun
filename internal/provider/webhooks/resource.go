@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
@@ -110,8 +111,12 @@ func (r *webhookResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 	urls, err := r.client.GetWebhook(readCtx, domain, webhookType)
 	if err != nil {
-		// Check if webhook doesn't exist
-		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "404") {
+		// GetWebhook signals absence two ways: a typed 404 when the domain
+		// itself is gone, and a bare "returned no urls" sentinel (200 OK, empty
+		// webhook object) when the domain exists but this webhook doesn't. The
+		// webhook's entire content is its URL list, so "no URLs" and "absent"
+		// are the same state from Terraform's point of view.
+		if mgerr.IsNotFound(err) || strings.Contains(err.Error(), "returned no urls") {
 			resp.State.RemoveResource(ctx)
 			return
 		}
