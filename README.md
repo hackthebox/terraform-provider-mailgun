@@ -1,12 +1,16 @@
 # Terraform Provider for Mailgun
 
-This Terraform provider allows you to manage [Mailgun](https://www.mailgun.com/) resources through Terraform. It provides the ability to create, read, update, and delete Mailgun domains, SMTP credentials, and API keys.
+This Terraform provider allows you to manage [Mailgun](https://www.mailgun.com/) resources through Terraform: domains and their DNS, DKIM, IP and tracking configuration, SMTP credentials, domain sending keys, routes, webhooks, templates, mailing lists, IP allowlists and send alerts.
+
+The examples below cover the most common resources. For the full, authoritative reference, see the [provider documentation on the Terraform Registry](https://registry.terraform.io/providers/hackthebox/mailgun/latest/docs).
 
 ## Requirements
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
-- [Go](https://golang.org/doc/install) >= 1.24 (for development)
-- A Mailgun account with an API key
+- [Go](https://golang.org/doc/install) at the version in the `go` directive of [`go.mod`](go.mod), for development only
+- A Mailgun account, and an **account-wide API key** for that account
+
+The provider authenticates with an account-wide key. A domain-scoped sending key cannot configure it, because most of what the provider manages (domains, subaccounts, the account-level IP allowlist) is not scoped to a single domain. Create the key in the Mailgun dashboard before running Terraform; the provider does not manage account-level keys, and could not, since it authenticates with the very credential such a resource would manage.
 
 ## Installation
 
@@ -17,7 +21,7 @@ terraform {
   required_providers {
     mailgun = {
       source  = "hackthebox/mailgun"
-      version = "~> 0.2"
+      version = "~> 1.1"
     }
   }
 }
@@ -38,7 +42,7 @@ provider "mailgun" {
 
 | Parameter | Description | Required | Default |
 |-----------|-------------|----------|---------|
-| `api_key` | Your Mailgun API key. Can also be set via `MAILGUN_API_KEY` environment variable | No (if `MAILGUN_API_KEY` is set) | - |
+| `api_key` | Your account-wide Mailgun API key. Can also be set via `MAILGUN_API_KEY` environment variable | No (if `MAILGUN_API_KEY` is set) | - |
 | `region` | The Mailgun region (`US` or `EU`) | No | `US` |
 | `endpoint` | Custom Mailgun API endpoint (overrides region) | No | - |
 
@@ -65,10 +69,14 @@ Manages SMTP credentials for sending email via SMTP.
 
 ```hcl
 resource "mailgun_smtp_credential" "app" {
-  domain   = mailgun_domain.example.name
-  login    = "app-sender"
-  password = var.smtp_password
+  domain              = mailgun_domain.example.name
+  login               = "app-sender"
+  password_wo         = var.smtp_password
+  password_wo_version = 1
 }
+
+# password_wo is never stored in state. Increment password_wo_version to rotate it.
+# Requires Terraform >= 1.11; the older `password` argument is deprecated.
 
 # The full SMTP login will be: app-sender@mail.example.com
 output "smtp_login" {
@@ -76,20 +84,19 @@ output "smtp_login" {
 }
 ```
 
-### `mailgun_api_key`
+### `mailgun_domain_sending_key`
 
-Manages Mailgun API keys for programmatic access.
+Manages a domain-scoped sending key.
 
 ```hcl
-resource "mailgun_api_key" "sending" {
-  role        = "sending"
-  description = "API key for sending emails"
-  domain_name = mailgun_domain.example.name
+resource "mailgun_domain_sending_key" "sending" {
+  domain      = mailgun_domain.example.name
+  description = "Sending key for the app"
 }
 
 # Store the secret in Vault or another secrets manager
-output "api_key_secret" {
-  value     = mailgun_api_key.sending.secret
+output "sending_key_secret" {
+  value     = mailgun_domain_sending_key.sending.secret
   sensitive = true
 }
 ```
@@ -121,13 +128,14 @@ data "mailgun_smtp_credentials" "all" {
 }
 ```
 
-### `mailgun_api_keys` / `mailgun_api_key`
+### `mailgun_domain_sending_keys`
 
-Query existing API keys.
+Query existing domain sending keys.
 
 ```hcl
-# List all API keys
-data "mailgun_api_keys" "all" {}
+data "mailgun_domain_sending_keys" "all" {
+  domain = "mail.example.com"
+}
 ```
 
 ## Complete Example with Vault Integration
@@ -139,7 +147,7 @@ terraform {
   required_providers {
     mailgun = {
       source  = "hackthebox/mailgun"
-      version = "~> 0.2"
+      version = "~> 1.1"
     }
     vault = {
       source  = "hashicorp/vault"
@@ -161,9 +169,10 @@ resource "mailgun_domain" "app" {
 
 # Create SMTP credential
 resource "mailgun_smtp_credential" "app" {
-  domain   = mailgun_domain.app.name
-  login    = "app-mailer"
-  password = random_password.smtp.result
+  domain              = mailgun_domain.app.name
+  login               = "app-mailer"
+  password_wo         = random_password.smtp.result
+  password_wo_version = 1
 }
 
 resource "random_password" "smtp" {
@@ -171,11 +180,10 @@ resource "random_password" "smtp" {
   special = false
 }
 
-# Create API key for sending
-resource "mailgun_api_key" "app" {
-  role        = "sending"
+# Create a domain-scoped sending key
+resource "mailgun_domain_sending_key" "app" {
+  domain      = mailgun_domain.app.name
   description = "MyApp sending key"
-  domain_name = mailgun_domain.app.name
 }
 
 # Store credentials in Vault
@@ -188,7 +196,7 @@ resource "vault_kv_secret_v2" "mailgun" {
     smtp_port     = "587"
     smtp_username = mailgun_smtp_credential.app.full_login
     smtp_password = random_password.smtp.result
-    api_key       = mailgun_api_key.app.secret
+    sending_key   = mailgun_domain_sending_key.app.secret
   })
 }
 ```

@@ -42,3 +42,8 @@ mise.local.toml
 # Output of scripts/mailgun-audit.sh: an inventory of production domains,
 # SMTP logins and requestor addresses. This repo is public.
 audit/
+
+# Contributor-facing agent guidance is tracked, overriding a global ignore of
+# **/AGENTS.md. CLAUDE.md stays untracked: it is a symlink to AGENTS.md, and
+# contributors use different AI tools.
+!AGENTS.md
