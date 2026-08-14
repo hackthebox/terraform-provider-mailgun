@@ -83,6 +83,7 @@ jobs:
       - env:
           TF_ACC: "1"
           MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
+          MAILGUN_TEST_DOMAIN: ${{ vars.MAILGUN_TEST_DOMAIN }}
         # -p 1 runs packages sequentially to avoid IP allowlist race conditions
         run: go test -v -cover -p 1 ./...
         timeout-minutes: 10
