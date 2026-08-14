@@ -89,6 +89,52 @@ func TestSmtpCredentialsListDataSourceSchema_HasRequiredFields(t *testing.T) {
 	}
 }
 
+func TestSmtpCredentialResourceSchema_WriteOnlyPassword(t *testing.T) {
+	schema := smtp_credentials.SmtpCredentialResourceSchema()
+
+	legacy, ok := schema.Attributes["password"].(rschema.StringAttribute)
+	if !ok {
+		t.Fatal("Schema missing string 'password' attribute")
+	}
+	if legacy.DeprecationMessage == "" {
+		t.Error("password should be deprecated in favor of password_wo")
+	}
+
+	wo, ok := schema.Attributes["password_wo"].(rschema.StringAttribute)
+	if !ok {
+		t.Fatal("Schema missing string 'password_wo' attribute")
+	}
+	if !wo.WriteOnly {
+		t.Error("password_wo must be WriteOnly")
+	}
+	if !wo.Optional {
+		t.Error("password_wo must be Optional")
+	}
+	if !wo.Sensitive {
+		t.Error("password_wo must be Sensitive")
+	}
+	if wo.Computed {
+		t.Error("password_wo must not be Computed (WriteOnly forbids Computed)")
+	}
+	if wo.Description == "" {
+		t.Error("password_wo must document that the value never reaches state")
+	}
+	if len(wo.Validators) == 0 {
+		t.Error("password_wo must carry validators enforcing the password XOR and its version")
+	}
+
+	version, ok := schema.Attributes["password_wo_version"].(rschema.Int64Attribute)
+	if !ok {
+		t.Fatal("Schema missing Int64 'password_wo_version' attribute")
+	}
+	if !version.Optional {
+		t.Error("password_wo_version must be Optional")
+	}
+	if version.Description == "" {
+		t.Error("password_wo_version must document that incrementing rotates the password")
+	}
+}
+
 // Acceptance Tests - These tests require MAILGUN_API_KEY and make real API calls
 
 func TestAccSmtpCredentialResource(t *testing.T) {
@@ -218,4 +264,128 @@ func testAccCheckSmtpCredentialDestroy(s *terraform.State) error {
 	// Credential deletion is handled by the provider
 	// This is a placeholder for more complex destroy checks if needed
 	return nil
+}
+
+func testAccSmtpCredentialWriteOnlyConfig(domain, login, password string, version int) string {
+	return fmt.Sprintf(`
+provider "mailgun" {
+  api_key = "%s"
+}
+
+resource "mailgun_smtp_credential" "wo" {
+  domain              = "%s"
+  login               = "%s"
+  password_wo         = "%s"
+  password_wo_version = %d
+}
+`, os.Getenv("MAILGUN_API_KEY"), domain, login, password, version)
+}
+
+func testAccSmtpCredentialMigrationLegacyConfig(domain, login, password string) string {
+	return fmt.Sprintf(`
+provider "mailgun" {
+  api_key = "%s"
+}
+
+resource "mailgun_smtp_credential" "migrate" {
+  domain   = "%s"
+  login    = "%s"
+  password = "%s"
+}
+`, os.Getenv("MAILGUN_API_KEY"), domain, login, password)
+}
+
+func testAccSmtpCredentialMigrationWriteOnlyConfig(domain, login, password string, version int) string {
+	return fmt.Sprintf(`
+provider "mailgun" {
+  api_key = "%s"
+}
+
+resource "mailgun_smtp_credential" "migrate" {
+  domain              = "%s"
+  login               = "%s"
+  password_wo         = "%s"
+  password_wo_version = %d
+}
+`, os.Getenv("MAILGUN_API_KEY"), domain, login, password, version)
+}
+
+// Migrating an existing credential from the deprecated stateful password to
+// password_wo must drop password from state without tripping Terraform's
+// "known planned value must be identical in the new state" rule.
+func TestAccSmtpCredentialResource_LegacyToWriteOnlyMigration(t *testing.T) {
+	if os.Getenv("MAILGUN_API_KEY") == "" {
+		t.Skip("MAILGUN_API_KEY environment variable is not set")
+	}
+	domainName := os.Getenv("MAILGUN_TEST_DOMAIN")
+	if domainName == "" {
+		t.Skip("MAILGUN_TEST_DOMAIN environment variable is not set")
+	}
+
+	loginName := test_helpers.RandomString(8)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
+		ProtoV6ProviderFactories: test_helpers.ProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckSmtpCredentialDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccSmtpCredentialMigrationLegacyConfig(domainName, loginName, "legacy-initial-123"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.migrate", "password", "legacy-initial-123"),
+				),
+			},
+			{
+				Config: testAccSmtpCredentialMigrationWriteOnlyConfig(domainName, loginName, "wo-migrated-456", 1),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.migrate", "password_wo_version", "1"),
+					resource.TestCheckNoResourceAttr("mailgun_smtp_credential.migrate", "password_wo"),
+					resource.TestCheckNoResourceAttr("mailgun_smtp_credential.migrate", "password"),
+				),
+			},
+			{
+				Config:   testAccSmtpCredentialMigrationWriteOnlyConfig(domainName, loginName, "wo-migrated-456", 1),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func TestAccSmtpCredentialResource_WriteOnly(t *testing.T) {
+	if os.Getenv("MAILGUN_API_KEY") == "" {
+		t.Skip("MAILGUN_API_KEY environment variable is not set")
+	}
+	domainName := os.Getenv("MAILGUN_TEST_DOMAIN")
+	if domainName == "" {
+		t.Skip("MAILGUN_TEST_DOMAIN environment variable is not set")
+	}
+
+	loginName := test_helpers.RandomString(8)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
+		ProtoV6ProviderFactories: test_helpers.ProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckSmtpCredentialDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccSmtpCredentialWriteOnlyConfig(domainName, loginName, "wo-initial-123", 1),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.wo", "login", loginName),
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.wo", "password_wo_version", "1"),
+					resource.TestCheckNoResourceAttr("mailgun_smtp_credential.wo", "password_wo"),
+					resource.TestCheckResourceAttrSet("mailgun_smtp_credential.wo", "created_at"),
+				),
+			},
+			{
+				Config:   testAccSmtpCredentialWriteOnlyConfig(domainName, loginName, "wo-initial-123", 1),
+				PlanOnly: true,
+			},
+			{
+				Config: testAccSmtpCredentialWriteOnlyConfig(domainName, loginName, "wo-rotated-456", 2),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.wo", "password_wo_version", "2"),
+				),
+			},
+		},
+	})
 }

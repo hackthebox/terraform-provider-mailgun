@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
@@ -28,6 +29,7 @@ var (
 	_ resource.Resource                = &SmtpCredentialResource{}
 	_ resource.ResourceWithConfigure   = &SmtpCredentialResource{}
 	_ resource.ResourceWithImportState = &SmtpCredentialResource{}
+	_ resource.ResourceWithModifyPlan  = &SmtpCredentialResource{}
 )
 
 // SmtpCredentialResource is the resource implementation.
@@ -63,12 +65,36 @@ func (r *SmtpCredentialResource) Configure(_ context.Context, req resource.Confi
 	r.client = client
 }
 
+// ModifyPlan keeps the deprecated password attribute null in the plan whenever the
+// write-only path is in use. password is Optional+Computed, so for an existing
+// credential Terraform proposes the prior state value; Update then writes null and
+// trips Terraform's rule that a known planned value must survive apply unchanged.
+func (r *SmtpCredentialResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var passwordWO types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("password_wo"), &passwordWO)...)
+	if resp.Diagnostics.HasError() || passwordWO.IsNull() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("password"), types.StringNull())...)
+}
+
 // Create creates a new SMTP credential.
 func (r *SmtpCredentialResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan SmtpCredentialModel
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var passwordWO types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("password_wo"), &passwordWO)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -84,7 +110,6 @@ func (r *SmtpCredentialResource) Create(ctx context.Context, req resource.Create
 
 	domain := plan.Domain.ValueString()
 	login := plan.Login.ValueString()
-	password := plan.Password.ValueString()
 
 	// Validate required fields
 	if domain == "" {
@@ -95,8 +120,13 @@ func (r *SmtpCredentialResource) Create(ctx context.Context, req resource.Create
 		resp.Diagnostics.AddError("Missing Login", "The login is required to create an SMTP credential.")
 		return
 	}
-	if plan.Password.IsNull() || plan.Password.IsUnknown() || password == "" {
-		resp.Diagnostics.AddError("Missing Password", "The password is required to create an SMTP credential.")
+
+	password, ok := passwordForCreate(passwordWO, plan.Password)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Missing Password",
+			"A password is required to create an SMTP credential. Set password_wo (with password_wo_version) or the deprecated password argument.",
+		)
 		return
 	}
 
@@ -118,6 +148,10 @@ func (r *SmtpCredentialResource) Create(ctx context.Context, req resource.Create
 	plan.Id = types.StringValue(fmt.Sprintf("%s/%s", domain, login))
 	plan.FullLogin = types.StringValue(fmt.Sprintf("%s@%s", login, domain))
 
+	if !passwordWO.IsNull() && !passwordWO.IsUnknown() {
+		plan.Password = types.StringNull()
+	}
+
 	// Try to get the created_at from the API by listing credentials
 	lookupCtx, cancelLookup := context.WithTimeout(ctx, createdAtLookupBudget)
 	defer cancelLookup()
@@ -132,7 +166,6 @@ func (r *SmtpCredentialResource) Create(ctx context.Context, req resource.Create
 		plan.CreatedAt = types.StringValue(time.Time(credential.CreatedAt).Format(time.RFC3339))
 	}
 
-	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -176,7 +209,7 @@ func (r *SmtpCredentialResource) Read(ctx context.Context, req resource.ReadRequ
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// Update updates an existing SMTP credential (only password can be changed).
+// Update updates an existing SMTP credential (only the password can be changed).
 func (r *SmtpCredentialResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan SmtpCredentialModel
 	var state SmtpCredentialModel
@@ -184,6 +217,12 @@ func (r *SmtpCredentialResource) Update(ctx context.Context, req resource.Update
 	// Read Terraform plan and state data
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var passwordWO types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("password_wo"), &passwordWO)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -199,49 +238,39 @@ func (r *SmtpCredentialResource) Update(ctx context.Context, req resource.Update
 
 	domain := plan.Domain.ValueString()
 	login := plan.Login.ValueString()
-	password := plan.Password.ValueString()
 
-	// Password is write-only and cannot be read back from the API. When it is
-	// omitted from configuration for an imported resource, preserve the
-	// existing state and do not attempt a password rotation.
-	if plan.Password.IsNull() {
-		plan.Password = state.Password
-		plan.Id = state.Id
-		plan.FullLogin = state.FullLogin
-		plan.CreatedAt = state.CreatedAt
-
-		resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
-		return
-	}
-
-	if password == "" {
-		resp.Diagnostics.AddError(
-			"Invalid Password",
+	newPassword, rotate, errMsg := resolveUpdatePassword(passwordWO, plan.Password, plan.PasswordWOVersion, state.PasswordWOVersion)
+	if errMsg != "" {
+		resp.Diagnostics.AddError(errMsg,
 			"The password cannot be an empty string. Omit the attribute to preserve the existing imported password, or set a non-empty value to rotate it.",
 		)
 		return
 	}
 
-	// Create context with timeout
-	updateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
+	if rotate {
+		updateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
 
-	// Only the password can be updated
-	err := r.client.ChangeCredentialPassword(updateCtx, domain, login, password)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error Updating SMTP Credential",
-			fmt.Sprintf("Could not update password for SMTP credential %s@%s: %s", login, domain, err),
-		)
-		return
+		if err := r.client.ChangeCredentialPassword(updateCtx, domain, login, newPassword); err != nil {
+			resp.Diagnostics.AddError(
+				"Error Updating SMTP Credential",
+				fmt.Sprintf("Could not update password for SMTP credential %s@%s: %s", login, domain, err),
+			)
+			return
+		}
 	}
 
-	// Keep computed values from state, update password from plan
 	plan.Id = state.Id
 	plan.FullLogin = state.FullLogin
 	plan.CreatedAt = state.CreatedAt
 
-	// Save updated state
+	usingWriteOnly := !passwordWO.IsNull() && !passwordWO.IsUnknown()
+	if usingWriteOnly {
+		plan.Password = types.StringNull()
+	} else if plan.Password.IsNull() {
+		plan.Password = state.Password
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -318,15 +347,15 @@ func (r *SmtpCredentialResource) ImportState(ctx context.Context, req resource.I
 		return
 	}
 
-	// Create state from imported data
 	state := SmtpCredentialModel{
-		Id:        types.StringValue(fmt.Sprintf("%s/%s", domain, login)),
-		Domain:    types.StringValue(domain),
-		Login:     types.StringValue(login),
-		FullLogin: types.StringValue(credential.Login),
-		CreatedAt: types.StringValue(time.Time(credential.CreatedAt).Format(time.RFC3339)),
-		// Password cannot be imported because the API never returns it.
-		Password: types.StringNull(),
+		Id:                types.StringValue(fmt.Sprintf("%s/%s", domain, login)),
+		Domain:            types.StringValue(domain),
+		Login:             types.StringValue(login),
+		FullLogin:         types.StringValue(credential.Login),
+		CreatedAt:         types.StringValue(time.Time(credential.CreatedAt).Format(time.RFC3339)),
+		Password:          types.StringNull(),
+		PasswordWO:        types.StringNull(),
+		PasswordWOVersion: types.Int64Null(),
 	}
 
 	// Save imported state
@@ -353,6 +382,41 @@ func findEventually(ctx context.Context, attempts int, delay time.Duration, find
 			return nil, ctx.Err()
 		case <-timer.C:
 		}
+	}
+}
+
+// passwordForCreate returns the password to use at create time, preferring the
+// write-only value over the deprecated stateful password. ok is false when
+// neither source provides a usable (known, non-empty) password.
+func passwordForCreate(passwordWO, legacy types.String) (password string, ok bool) {
+	if !passwordWO.IsNull() && !passwordWO.IsUnknown() {
+		return passwordWO.ValueString(), true
+	}
+	// ValueString reports "" for null and unknown alike, so this covers both.
+	if legacy.ValueString() != "" {
+		return legacy.ValueString(), true
+	}
+	return "", false
+}
+
+func writeOnlyRotationRequested(planVersion, stateVersion types.Int64) bool {
+	return !planVersion.IsNull() && !planVersion.Equal(stateVersion)
+}
+
+func resolveUpdatePassword(passwordWO, planPW types.String, planVersion, stateVersion types.Int64) (newPassword string, rotate bool, errTitle string) {
+	usingWriteOnly := !passwordWO.IsNull() && !passwordWO.IsUnknown()
+	switch {
+	case usingWriteOnly:
+		if writeOnlyRotationRequested(planVersion, stateVersion) {
+			return passwordWO.ValueString(), true, ""
+		}
+		return "", false, ""
+	case planPW.IsNull():
+		return "", false, ""
+	case planPW.ValueString() == "":
+		return "", false, "Invalid Password"
+	default:
+		return planPW.ValueString(), true, ""
 	}
 }
 

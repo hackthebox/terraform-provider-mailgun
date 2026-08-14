@@ -10,9 +10,12 @@ import (
 // SmtpCredentialModel represents the Terraform state for an SMTP credential resource
 type SmtpCredentialModel struct {
 	// Required inputs
-	Domain   types.String `tfsdk:"domain"`
-	Login    types.String `tfsdk:"login"`
-	Password types.String `tfsdk:"password"`
+	Domain types.String `tfsdk:"domain"`
+	Login  types.String `tfsdk:"login"`
+
+	Password          types.String `tfsdk:"password"`
+	PasswordWO        types.String `tfsdk:"password_wo"`
+	PasswordWOVersion types.Int64  `tfsdk:"password_wo_version"`
 
 	// Computed attributes
 	Id        types.String `tfsdk:"id"`

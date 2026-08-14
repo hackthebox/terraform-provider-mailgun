@@ -9,6 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/mailgun/mailgun-go/v5/mtypes"
 )
 
@@ -123,5 +129,265 @@ func TestCreatedAtLookupBudgetCoversItsAttempts(t *testing.T) {
 	// The budget has to outlast the waits it wraps, or later attempts never happen.
 	if minimum := time.Duration(createdAtLookupAttempts-1) * createdAtLookupDelay; createdAtLookupBudget <= minimum {
 		t.Errorf("createdAtLookupBudget = %v, must exceed the %v spent waiting between attempts", createdAtLookupBudget, minimum)
+	}
+}
+
+func TestPasswordForCreate(t *testing.T) {
+	tests := []struct {
+		name       string
+		passwordWO types.String
+		legacy     types.String
+		wantPass   string
+		wantOK     bool
+	}{
+		{"write-only preferred", types.StringValue("wo-secret"), types.StringValue("legacy"), "wo-secret", true},
+		{"legacy when no wo", types.StringNull(), types.StringValue("legacy"), "legacy", true},
+		{"neither set", types.StringNull(), types.StringNull(), "", false},
+		{"legacy unknown ignored", types.StringNull(), types.StringUnknown(), "", false},
+		{"wo unknown falls back to legacy", types.StringUnknown(), types.StringValue("legacy"), "legacy", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotPass, gotOK := passwordForCreate(tt.passwordWO, tt.legacy)
+			if gotPass != tt.wantPass || gotOK != tt.wantOK {
+				t.Errorf("passwordForCreate() = (%q, %v), want (%q, %v)", gotPass, gotOK, tt.wantPass, tt.wantOK)
+			}
+		})
+	}
+}
+
+func TestWriteOnlyRotationRequested(t *testing.T) {
+	tests := []struct {
+		name  string
+		plan  types.Int64
+		state types.Int64
+		want  bool
+	}{
+		{"version bumped", types.Int64Value(2), types.Int64Value(1), true},
+		{"version unchanged", types.Int64Value(1), types.Int64Value(1), false},
+		{"first set from null state", types.Int64Value(1), types.Int64Null(), true},
+		{"no version in plan", types.Int64Null(), types.Int64Null(), false},
+		{"version dropped from config", types.Int64Null(), types.Int64Value(1), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := writeOnlyRotationRequested(tt.plan, tt.state); got != tt.want {
+				t.Errorf("writeOnlyRotationRequested() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveUpdatePassword(t *testing.T) {
+	tests := []struct {
+		name         string
+		passwordWO   types.String
+		planPW       types.String
+		planVersion  types.Int64
+		stateVersion types.Int64
+		wantPW       string
+		wantRotate   bool
+		wantErr      string
+	}{
+		{
+			name:         "write-only with version bump rotates",
+			passwordWO:   types.StringValue("wo-secret"),
+			planPW:       types.StringNull(),
+			planVersion:  types.Int64Value(2),
+			stateVersion: types.Int64Value(1),
+			wantPW:       "wo-secret",
+			wantRotate:   true,
+			wantErr:      "",
+		},
+		{
+			name:         "write-only without version bump skips rotation",
+			passwordWO:   types.StringValue("wo-secret"),
+			planPW:       types.StringNull(),
+			planVersion:  types.Int64Value(1),
+			stateVersion: types.Int64Value(1),
+			wantPW:       "",
+			wantRotate:   false,
+			wantErr:      "",
+		},
+		{
+			name:         "legacy null preserves imported state",
+			passwordWO:   types.StringNull(),
+			planPW:       types.StringNull(),
+			planVersion:  types.Int64Null(),
+			stateVersion: types.Int64Null(),
+			wantPW:       "",
+			wantRotate:   false,
+			wantErr:      "",
+		},
+		{
+			name:         "legacy empty string is an error",
+			passwordWO:   types.StringNull(),
+			planPW:       types.StringValue(""),
+			planVersion:  types.Int64Null(),
+			stateVersion: types.Int64Null(),
+			wantPW:       "",
+			wantRotate:   false,
+			wantErr:      "Invalid Password",
+		},
+		{
+			name:         "legacy non-empty rotates",
+			passwordWO:   types.StringNull(),
+			planPW:       types.StringValue("newpass"),
+			planVersion:  types.Int64Null(),
+			stateVersion: types.Int64Null(),
+			wantPW:       "newpass",
+			wantRotate:   true,
+			wantErr:      "",
+		},
+		{
+			name:         "write-only unknown falls through to legacy",
+			passwordWO:   types.StringUnknown(),
+			planPW:       types.StringValue("legacy"),
+			planVersion:  types.Int64Null(),
+			stateVersion: types.Int64Null(),
+			wantPW:       "legacy",
+			wantRotate:   true,
+			wantErr:      "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotPW, gotRotate, gotErr := resolveUpdatePassword(tt.passwordWO, tt.planPW, tt.planVersion, tt.stateVersion)
+			if gotPW != tt.wantPW || gotRotate != tt.wantRotate || gotErr != tt.wantErr {
+				t.Errorf("resolveUpdatePassword() = (%q, %v, %q), want (%q, %v, %q)",
+					gotPW, gotRotate, gotErr, tt.wantPW, tt.wantRotate, tt.wantErr)
+			}
+		})
+	}
+}
+
+// credentialObject builds a resource-shaped tftypes value, defaulting every
+// attribute to null and applying the given overrides.
+func credentialObject(t *testing.T, overrides map[string]tftypes.Value) tftypes.Value {
+	t.Helper()
+
+	objType, ok := SmtpCredentialResourceSchema().Type().TerraformType(context.Background()).(tftypes.Object)
+	if !ok {
+		t.Fatal("schema terraform type is not an object")
+	}
+
+	attrs := make(map[string]tftypes.Value, len(objType.AttributeTypes))
+	for name, attrType := range objType.AttributeTypes {
+		if override, found := overrides[name]; found {
+			attrs[name] = override
+			continue
+		}
+		attrs[name] = tftypes.NewValue(attrType, nil)
+	}
+
+	return tftypes.NewValue(objType, attrs)
+}
+
+func planPassword(t *testing.T, plan tfsdk.Plan) types.String {
+	t.Helper()
+
+	var got types.String
+	if diags := plan.GetAttribute(context.Background(), path.Root("password"), &got); diags.HasError() {
+		t.Fatalf("reading planned password: %v", diags)
+	}
+	return got
+}
+
+func TestModifyPlanPinsLegacyPasswordWhenWriteOnlyConfigured(t *testing.T) {
+	resourceSchema := SmtpCredentialResourceSchema()
+
+	config := credentialObject(t, map[string]tftypes.Value{
+		"password_wo":         tftypes.NewValue(tftypes.String, "wo-secret"),
+		"password_wo_version": tftypes.NewValue(tftypes.Number, int64(1)),
+	})
+	// An Optional+Computed password carries its prior state value into the plan.
+	plan := credentialObject(t, map[string]tftypes.Value{
+		"password":            tftypes.NewValue(tftypes.String, "legacy-secret"),
+		"password_wo_version": tftypes.NewValue(tftypes.Number, int64(1)),
+	})
+
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: plan, Schema: resourceSchema}}
+	(&SmtpCredentialResource{}).ModifyPlan(context.Background(), resource.ModifyPlanRequest{
+		Config: tfsdk.Config{Raw: config, Schema: resourceSchema},
+		Plan:   tfsdk.Plan{Raw: plan, Schema: resourceSchema},
+	}, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+	}
+	if got := planPassword(t, resp.Plan); !got.IsNull() {
+		t.Errorf("planned password = %v, want null", got)
+	}
+}
+
+func TestModifyPlanLeavesLegacyPasswordWhenWriteOnlyAbsent(t *testing.T) {
+	resourceSchema := SmtpCredentialResourceSchema()
+
+	values := credentialObject(t, map[string]tftypes.Value{
+		"password": tftypes.NewValue(tftypes.String, "legacy-secret"),
+	})
+
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: values, Schema: resourceSchema}}
+	(&SmtpCredentialResource{}).ModifyPlan(context.Background(), resource.ModifyPlanRequest{
+		Config: tfsdk.Config{Raw: values, Schema: resourceSchema},
+		Plan:   tfsdk.Plan{Raw: values, Schema: resourceSchema},
+	}, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+	}
+	if got := planPassword(t, resp.Plan); got.ValueString() != "legacy-secret" {
+		t.Errorf("planned password = %v, want %q", got, "legacy-secret")
+	}
+}
+
+func TestModifyPlanIgnoresDestroy(t *testing.T) {
+	resourceSchema := SmtpCredentialResourceSchema()
+
+	objType := SmtpCredentialResourceSchema().Type().TerraformType(context.Background())
+	nullPlan := tftypes.NewValue(objType, nil)
+
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: nullPlan, Schema: resourceSchema}}
+	(&SmtpCredentialResource{}).ModifyPlan(context.Background(), resource.ModifyPlanRequest{
+		Config: tfsdk.Config{Raw: nullPlan, Schema: resourceSchema},
+		Plan:   tfsdk.Plan{Raw: nullPlan, Schema: resourceSchema},
+	}, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+	}
+	if !resp.Plan.Raw.IsNull() {
+		t.Error("destroy plan should be left untouched")
+	}
+}
+
+func TestModifyPlanStopsOnConfigReadError(t *testing.T) {
+	resourceSchema := SmtpCredentialResourceSchema()
+
+	plan := credentialObject(t, map[string]tftypes.Value{
+		"password": tftypes.NewValue(tftypes.String, "legacy-secret"),
+	})
+
+	// A schema without password_wo makes the config read fail, which must abort
+	// before the plan is touched.
+	strippedSchema := schema.Schema{Attributes: map[string]schema.Attribute{
+		"domain": schema.StringAttribute{Required: true},
+	}}
+	strippedType := strippedSchema.Type().TerraformType(context.Background())
+	strippedConfig := tftypes.NewValue(strippedType, map[string]tftypes.Value{
+		"domain": tftypes.NewValue(tftypes.String, "example.com"),
+	})
+
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: plan, Schema: resourceSchema}}
+	(&SmtpCredentialResource{}).ModifyPlan(context.Background(), resource.ModifyPlanRequest{
+		Config: tfsdk.Config{Raw: strippedConfig, Schema: strippedSchema},
+		Plan:   tfsdk.Plan{Raw: plan, Schema: resourceSchema},
+	}, resp)
+
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected a diagnostic from the failed config read")
+	}
+	if got := planPassword(t, resp.Plan); got.ValueString() != "legacy-secret" {
+		t.Errorf("planned password = %v, want %q left untouched", got, "legacy-secret")
 	}
 }

@@ -1,0 +1,7 @@
+```release-note:enhancement
+resource/mailgun_smtp_credential: Add write-only `password_wo` and `password_wo_version` arguments. The secret is never stored in Terraform state; increment the version to rotate. Requires Terraform CLI >= 1.11.
+```
+
+```release-note:deprecation
+resource/mailgun_smtp_credential: The `password` argument is deprecated in favor of `password_wo`/`password_wo_version` and will be removed in a future major release.
+```
