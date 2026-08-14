@@ -6,8 +6,10 @@ package provider
 import (
 	"context"
 	"net/http"
+	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -73,7 +75,7 @@ func (p *mailgunProvider) Schema(_ context.Context, _ provider.SchemaRequest, re
 		Attributes: map[string]schema.Attribute{
 			"api_key": schema.StringAttribute{
 				Description: "Mailgun API key for authentication. Can also be set via MAILGUN_API_KEY environment variable.",
-				Required:    true,
+				Optional:    true,
 				Sensitive:   true,
 			},
 			"region": schema.StringAttribute{
@@ -97,12 +99,30 @@ func (p *mailgunProvider) Configure(ctx context.Context, req provider.ConfigureR
 		return
 	}
 
-	if config.ApiKey.IsNull() {
+	if config.ApiKey.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("api_key"),
+			"Unknown API Key Configuration",
+			"The api_key value is not known until apply, so the provider cannot tell "+
+				"whether it was configured. Falling back to MAILGUN_API_KEY here would "+
+				"silently authenticate as a different account. "+
+				"Apply whatever produces the key first, or set api_key statically.",
+		)
+		return
+	}
+
+	apiKey := config.ApiKey.ValueString()
+	if apiKey == "" {
+		apiKey = os.Getenv("MAILGUN_API_KEY")
+	}
+
+	if apiKey == "" {
 		resp.Diagnostics.AddError(
 			"Missing API Key Configuration",
 			"While configuring the provider, the API key was not found in "+
 				"the Mailgun provider configuration. "+
-				"Please set the api_key value in the provider configuration.",
+				"Please set the api_key value in the provider configuration "+
+				"or MAILGUN_API_KEY environment variable.",
 		)
 		return
 	}
@@ -114,7 +134,7 @@ func (p *mailgunProvider) Configure(ctx context.Context, req provider.ConfigureR
 	}
 
 	// Create Mailgun client (v5 API)
-	mg := mailgun.NewMailgun(config.ApiKey.ValueString())
+	mg := mailgun.NewMailgun(apiKey)
 	mg.SetHTTPClient(&http.Client{Transport: newRateLimitRetryTransport()})
 
 	// Set region if provided

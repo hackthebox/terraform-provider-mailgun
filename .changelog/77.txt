@@ -1,0 +1,3 @@
+```release-note:enhancement
+provider: The `api_key` argument is now optional and falls back to the `MAILGUN_API_KEY` environment variable, matching the documented behaviour. Configuring `api_key` with a value that is unknown until apply is now an error rather than a silent fall back to the environment.
+```
