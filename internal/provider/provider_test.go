@@ -105,3 +105,22 @@ func TestConfigureErrorsOnUnknownAPIKey(t *testing.T) {
 		t.Errorf("expected no client, got %T", resp.ResourceData)
 	}
 }
+
+func TestSchemaMakesAPIKeyOptional(t *testing.T) {
+	resp := &provider.SchemaResponse{}
+	New("test")().Schema(context.Background(), provider.SchemaRequest{}, resp)
+
+	apiKey, ok := resp.Schema.Attributes["api_key"]
+	if !ok {
+		t.Fatal("expected an api_key attribute")
+	}
+	if apiKey.IsRequired() {
+		t.Error("api_key must not be required, it falls back to MAILGUN_API_KEY")
+	}
+	if !apiKey.IsOptional() {
+		t.Error("api_key must be optional so the provider block can omit it")
+	}
+	if !apiKey.IsSensitive() {
+		t.Error("api_key must stay sensitive")
+	}
+}
