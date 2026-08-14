@@ -1,3 +1,17 @@
+## 1.1.0 (August 14, 2026)
+
+DEPRECATIONS:
+* resource/mailgun_smtp_credential: The `password` argument is deprecated in favor of `password_wo`/`password_wo_version` and will be removed in a future major release. ([#76](https://github.com/hackthebox/terraform-provider-mailgun/pull/76))
+
+ENHANCEMENTS:
+* provider: The `api_key` argument is now optional and falls back to the `MAILGUN_API_KEY` environment variable, matching the documented behaviour. Configuring `api_key` with a value that is unknown until apply is now an error rather than a silent fall back to the environment. ([#77](https://github.com/hackthebox/terraform-provider-mailgun/pull/77))
+* resource/mailgun_smtp_credential: Add write-only `password_wo` and `password_wo_version` arguments. The secret is never stored in Terraform state; increment the version to rotate. Requires Terraform CLI >= 1.11. ([#76](https://github.com/hackthebox/terraform-provider-mailgun/pull/76))
+
+BUG FIXES:
+* provider: Retry requests that Mailgun rejects with HTTP 429, honouring `Retry-After` (capped at 30s) with exponential backoff. Previously a rate-limited response surfaced as a hard apply failure. ([#84](https://github.com/hackthebox/terraform-provider-mailgun/pull/84))
+* resource/mailgun_domain_tracking: Stop overwriting configured attributes with the post-apply read. A read that disagrees with the configuration now surfaces as drift on the next refresh instead of failing the apply with "Provider produced inconsistent result after apply". ([#89](https://github.com/hackthebox/terraform-provider-mailgun/pull/89))
+* resource/mailgun_smtp_credential: Stop stamping a client-side `created_at` when the credential listing lags a create. The value is now retried briefly and left null if still unavailable, so it can no longer disagree with the server. ([#88](https://github.com/hackthebox/terraform-provider-mailgun/pull/88))
+
 ## 1.0.6 (June 12, 2026)
 
 BUG FIXES:
