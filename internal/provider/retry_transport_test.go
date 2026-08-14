@@ -11,6 +11,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-framework/provider"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/mailgun/mailgun-go/v5"
 )
 
 type fakeRoundTripper struct {
@@ -206,7 +211,8 @@ func TestRetryAfterDelay(t *testing.T) {
 		{"zero", "0", fallback},
 		{"negative", "-3", fallback},
 		{"unparseable", "later", fallback},
-		{"capped", "9999", maxRetryAfter},
+		{"one second", "1", time.Second},
+		{"capped", "9999", 30 * time.Second},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -245,13 +251,123 @@ func TestSleepWithContextAbortsOnCancelledContext(t *testing.T) {
 func TestNewRateLimitRetryTransportDefaults(t *testing.T) {
 	transport := newRateLimitRetryTransport()
 
-	if transport.attempts != rateLimitRetryAttempts {
-		t.Errorf("attempts = %d, want %d", transport.attempts, rateLimitRetryAttempts)
+	if transport.attempts != 3 {
+		t.Errorf("attempts = %d, want 3", transport.attempts)
 	}
 	if transport.next != http.DefaultTransport {
 		t.Error("next should default to http.DefaultTransport")
 	}
 	if transport.wait == nil {
 		t.Error("wait must be set so RoundTrip can back off")
+	}
+}
+
+type countingBody struct {
+	io.Reader
+	closes *int
+}
+
+func (b countingBody) Close() error {
+	*b.closes++
+	return nil
+}
+
+func TestRoundTripBacksOffExponentiallyWithoutRetryAfter(t *testing.T) {
+	fake := &fakeRoundTripper{responses: []*http.Response{
+		response(http.StatusTooManyRequests, ""),
+		response(http.StatusTooManyRequests, ""),
+		response(http.StatusOK, ""),
+	}}
+	var waits []time.Duration
+
+	if _, err := newTestTransport(fake, &waits).RoundTrip(httpGet(t)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(waits) != 2 || waits[0] != 2*time.Second || waits[1] != 4*time.Second {
+		t.Errorf("waits = %v, want [2s 4s] growing per attempt", waits)
+	}
+}
+
+func TestRoundTripClosesDiscardedResponseBodies(t *testing.T) {
+	var closes int
+	rateLimited := response(http.StatusTooManyRequests, "")
+	rateLimited.Body = countingBody{Reader: strings.NewReader(""), closes: &closes}
+
+	fake := &fakeRoundTripper{responses: []*http.Response{rateLimited, response(http.StatusOK, "")}}
+	var waits []time.Duration
+
+	if _, err := newTestTransport(fake, &waits).RoundTrip(httpGet(t)); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if closes != 1 {
+		t.Errorf("closes = %d, want 1 so the discarded 429 body does not leak", closes)
+	}
+}
+
+func TestRoundTripPassesRequestContextToWait(t *testing.T) {
+	type marker struct{}
+	ctx := context.WithValue(context.Background(), marker{}, "carried")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://example.invalid/v3/routes", nil)
+	if err != nil {
+		t.Fatalf("building request: %v", err)
+	}
+
+	fake := &fakeRoundTripper{responses: []*http.Response{
+		response(http.StatusTooManyRequests, ""),
+		response(http.StatusOK, ""),
+	}}
+	var seen context.Context
+	transport := rateLimitRetryTransport{
+		next:     fake,
+		attempts: 3,
+		wait: func(c context.Context, _ time.Duration) error {
+			seen = c
+			return nil
+		},
+	}
+
+	if _, err := transport.RoundTrip(req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if seen == nil || seen.Value(marker{}) != "carried" {
+		t.Error("wait must receive the request context so cancellation propagates")
+	}
+}
+
+func TestConfigureInstallsRetryTransport(t *testing.T) {
+	ctx := context.Background()
+
+	var schemaResp provider.SchemaResponse
+	(&mailgunProvider{}).Schema(ctx, provider.SchemaRequest{}, &schemaResp)
+
+	objType, ok := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+	if !ok {
+		t.Fatal("provider schema type is not an object")
+	}
+
+	attrs := make(map[string]tftypes.Value, len(objType.AttributeTypes))
+	for name, attrType := range objType.AttributeTypes {
+		attrs[name] = tftypes.NewValue(attrType, nil)
+	}
+	attrs["api_key"] = tftypes.NewValue(tftypes.String, "key-test")
+
+	var resp provider.ConfigureResponse
+	(&mailgunProvider{}).Configure(ctx, provider.ConfigureRequest{
+		Config: tfsdk.Config{Raw: tftypes.NewValue(objType, attrs), Schema: schemaResp.Schema},
+	}, &resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+	}
+
+	client, ok := resp.ResourceData.(*mailgun.Client)
+	if !ok {
+		t.Fatalf("ResourceData = %T, want *mailgun.Client", resp.ResourceData)
+	}
+	if _, ok := client.HTTPClient().Transport.(rateLimitRetryTransport); !ok {
+		t.Errorf("transport = %T, want rateLimitRetryTransport so 429s are retried", client.HTTPClient().Transport)
 	}
 }
