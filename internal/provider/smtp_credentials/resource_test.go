@@ -116,9 +116,22 @@ func TestSmtpCredentialResourceSchema_WriteOnlyPassword(t *testing.T) {
 	if wo.Computed {
 		t.Error("password_wo must not be Computed (WriteOnly forbids Computed)")
 	}
+	if wo.Description == "" {
+		t.Error("password_wo must document that the value never reaches state")
+	}
+	if len(wo.Validators) == 0 {
+		t.Error("password_wo must carry validators enforcing the password XOR and its version")
+	}
 
-	if _, ok := schema.Attributes["password_wo_version"].(rschema.Int64Attribute); !ok {
+	version, ok := schema.Attributes["password_wo_version"].(rschema.Int64Attribute)
+	if !ok {
 		t.Fatal("Schema missing Int64 'password_wo_version' attribute")
+	}
+	if !version.Optional {
+		t.Error("password_wo_version must be Optional")
+	}
+	if version.Description == "" {
+		t.Error("password_wo_version must document that incrementing rotates the password")
 	}
 }
 

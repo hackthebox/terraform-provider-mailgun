@@ -392,7 +392,8 @@ func passwordForCreate(passwordWO, legacy types.String) (password string, ok boo
 	if !passwordWO.IsNull() && !passwordWO.IsUnknown() {
 		return passwordWO.ValueString(), true
 	}
-	if !legacy.IsNull() && !legacy.IsUnknown() && legacy.ValueString() != "" {
+	// ValueString reports "" for null and unknown alike, so this covers both.
+	if legacy.ValueString() != "" {
 		return legacy.ValueString(), true
 	}
 	return "", false

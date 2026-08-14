@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
@@ -166,6 +167,7 @@ func TestWriteOnlyRotationRequested(t *testing.T) {
 		{"version unchanged", types.Int64Value(1), types.Int64Value(1), false},
 		{"first set from null state", types.Int64Value(1), types.Int64Null(), true},
 		{"no version in plan", types.Int64Null(), types.Int64Null(), false},
+		{"version dropped from config", types.Int64Null(), types.Int64Value(1), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -292,7 +294,7 @@ func planPassword(t *testing.T, plan tfsdk.Plan) types.String {
 }
 
 func TestModifyPlanPinsLegacyPasswordWhenWriteOnlyConfigured(t *testing.T) {
-	schema := SmtpCredentialResourceSchema()
+	resourceSchema := SmtpCredentialResourceSchema()
 
 	config := credentialObject(t, map[string]tftypes.Value{
 		"password_wo":         tftypes.NewValue(tftypes.String, "wo-secret"),
@@ -304,10 +306,10 @@ func TestModifyPlanPinsLegacyPasswordWhenWriteOnlyConfigured(t *testing.T) {
 		"password_wo_version": tftypes.NewValue(tftypes.Number, int64(1)),
 	})
 
-	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: plan, Schema: schema}}
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: plan, Schema: resourceSchema}}
 	(&SmtpCredentialResource{}).ModifyPlan(context.Background(), resource.ModifyPlanRequest{
-		Config: tfsdk.Config{Raw: config, Schema: schema},
-		Plan:   tfsdk.Plan{Raw: plan, Schema: schema},
+		Config: tfsdk.Config{Raw: config, Schema: resourceSchema},
+		Plan:   tfsdk.Plan{Raw: plan, Schema: resourceSchema},
 	}, resp)
 
 	if resp.Diagnostics.HasError() {
@@ -319,16 +321,16 @@ func TestModifyPlanPinsLegacyPasswordWhenWriteOnlyConfigured(t *testing.T) {
 }
 
 func TestModifyPlanLeavesLegacyPasswordWhenWriteOnlyAbsent(t *testing.T) {
-	schema := SmtpCredentialResourceSchema()
+	resourceSchema := SmtpCredentialResourceSchema()
 
 	values := credentialObject(t, map[string]tftypes.Value{
 		"password": tftypes.NewValue(tftypes.String, "legacy-secret"),
 	})
 
-	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: values, Schema: schema}}
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: values, Schema: resourceSchema}}
 	(&SmtpCredentialResource{}).ModifyPlan(context.Background(), resource.ModifyPlanRequest{
-		Config: tfsdk.Config{Raw: values, Schema: schema},
-		Plan:   tfsdk.Plan{Raw: values, Schema: schema},
+		Config: tfsdk.Config{Raw: values, Schema: resourceSchema},
+		Plan:   tfsdk.Plan{Raw: values, Schema: resourceSchema},
 	}, resp)
 
 	if resp.Diagnostics.HasError() {
@@ -340,15 +342,15 @@ func TestModifyPlanLeavesLegacyPasswordWhenWriteOnlyAbsent(t *testing.T) {
 }
 
 func TestModifyPlanIgnoresDestroy(t *testing.T) {
-	schema := SmtpCredentialResourceSchema()
+	resourceSchema := SmtpCredentialResourceSchema()
 
 	objType := SmtpCredentialResourceSchema().Type().TerraformType(context.Background())
 	nullPlan := tftypes.NewValue(objType, nil)
 
-	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: nullPlan, Schema: schema}}
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: nullPlan, Schema: resourceSchema}}
 	(&SmtpCredentialResource{}).ModifyPlan(context.Background(), resource.ModifyPlanRequest{
-		Config: tfsdk.Config{Raw: nullPlan, Schema: schema},
-		Plan:   tfsdk.Plan{Raw: nullPlan, Schema: schema},
+		Config: tfsdk.Config{Raw: nullPlan, Schema: resourceSchema},
+		Plan:   tfsdk.Plan{Raw: nullPlan, Schema: resourceSchema},
 	}, resp)
 
 	if resp.Diagnostics.HasError() {
@@ -356,5 +358,36 @@ func TestModifyPlanIgnoresDestroy(t *testing.T) {
 	}
 	if !resp.Plan.Raw.IsNull() {
 		t.Error("destroy plan should be left untouched")
+	}
+}
+
+func TestModifyPlanStopsOnConfigReadError(t *testing.T) {
+	resourceSchema := SmtpCredentialResourceSchema()
+
+	plan := credentialObject(t, map[string]tftypes.Value{
+		"password": tftypes.NewValue(tftypes.String, "legacy-secret"),
+	})
+
+	// A schema without password_wo makes the config read fail, which must abort
+	// before the plan is touched.
+	strippedSchema := schema.Schema{Attributes: map[string]schema.Attribute{
+		"domain": schema.StringAttribute{Required: true},
+	}}
+	strippedType := strippedSchema.Type().TerraformType(context.Background())
+	strippedConfig := tftypes.NewValue(strippedType, map[string]tftypes.Value{
+		"domain": tftypes.NewValue(tftypes.String, "example.com"),
+	})
+
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: plan, Schema: resourceSchema}}
+	(&SmtpCredentialResource{}).ModifyPlan(context.Background(), resource.ModifyPlanRequest{
+		Config: tfsdk.Config{Raw: strippedConfig, Schema: strippedSchema},
+		Plan:   tfsdk.Plan{Raw: plan, Schema: resourceSchema},
+	}, resp)
+
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("expected a diagnostic from the failed config read")
+	}
+	if got := planPassword(t, resp.Plan); got.ValueString() != "legacy-secret" {
+		t.Errorf("planned password = %v, want %q left untouched", got, "legacy-secret")
 	}
 }
