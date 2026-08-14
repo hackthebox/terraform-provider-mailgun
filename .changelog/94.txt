@@ -1,0 +1,3 @@
+```release-note:enhancement
+provider: Upgraded the Mailgun SDK (`mailgun-go/v5`) from v5.16.0 to v5.19.1.
+```
