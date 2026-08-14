@@ -8,6 +8,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/schema_validators"
 )
 
 // IPAllowlistResourceSchema returns the schema for the mailgun_ip_allowlist resource.
@@ -19,6 +22,9 @@ func IPAllowlistResourceSchema() schema.Schema {
 			"address": schema.StringAttribute{
 				Description: "The IP address or CIDR range to allowlist (e.g., '192.168.1.1' or '192.168.1.0/24').",
 				Required:    true,
+				Validators: []validator.String{
+					schema_validators.IPAddressOrCIDR(),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

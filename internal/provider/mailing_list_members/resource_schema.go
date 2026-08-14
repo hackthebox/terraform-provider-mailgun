@@ -8,7 +8,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/schema_validators"
 )
 
 // MailingListMemberResourceSchema returns the schema for the mailgun_mailing_list_member resource.
@@ -20,6 +23,9 @@ func MailingListMemberResourceSchema() schema.Schema {
 			"list_address": schema.StringAttribute{
 				Description: "The email address of the mailing list. Changing this forces recreation.",
 				Required:    true,
+				Validators: []validator.String{
+					schema_validators.EmailAddress(),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -27,6 +33,9 @@ func MailingListMemberResourceSchema() schema.Schema {
 			"member_address": schema.StringAttribute{
 				Description: "The email address of the member. Changing this forces recreation.",
 				Required:    true,
+				Validators: []validator.String{
+					schema_validators.EmailAddress(),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

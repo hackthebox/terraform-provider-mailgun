@@ -4,12 +4,14 @@
 package domain_dkim_key
 
 import (
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
 // DomainDkimKeyResourceSchema returns the schema for the mailgun_domain_dkim_key resource.
@@ -44,6 +46,9 @@ func DomainDkimKeyResourceSchema() schema.Schema {
 				Optional:    true,
 				Computed:    true,
 				Default:     int64default.StaticInt64(1024),
+				Validators: []validator.Int64{
+					int64validator.OneOf(1024, 2048),
+				},
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.RequiresReplace(),
 				},
