@@ -7,6 +7,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/schema_validators"
 )
 
 // DomainIPResourceSchema returns the schema for the mailgun_domain_ip resource.
@@ -32,6 +35,9 @@ func DomainIPResourceSchema() schema.Schema {
 			"ip": schema.StringAttribute{
 				Description: "The IP address to associate with the domain.",
 				Required:    true,
+				Validators: []validator.String{
+					schema_validators.IPAddress(),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
