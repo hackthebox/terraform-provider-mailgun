@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -114,6 +115,7 @@ func (p *mailgunProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 	// Create Mailgun client (v5 API)
 	mg := mailgun.NewMailgun(config.ApiKey.ValueString())
+	mg.SetHTTPClient(&http.Client{Transport: newRateLimitRetryTransport()})
 
 	// Set region if provided
 	if !config.Region.IsNull() {
