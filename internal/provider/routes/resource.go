@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
@@ -112,6 +113,10 @@ func (r *routeResource) Read(ctx context.Context, req resource.ReadRequest, resp
 
 	route, err := r.client.GetRoute(readCtx, state.Id.ValueString())
 	if err != nil {
+		if mgerr.IsNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Error Reading Mailgun Route",
 			fmt.Sprintf("Could not read route %s: %s", state.Id.ValueString(), err.Error()),
