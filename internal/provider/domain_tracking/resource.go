@@ -74,8 +74,11 @@ func (r *domainTrackingResource) Create(ctx context.Context, req resource.Create
 	}
 
 	// Read back only to resolve what the plan left unknown
-	actual := DomainTrackingModel{Domain: plan.Domain}
-	if err := r.readTrackingSettings(ctx, domain, &actual); err != nil {
+	actual, err := settleTracking(ctx, trackingSettleAttempts, trackingSettleDelay, &plan, func() (DomainTrackingModel, error) {
+		observed := DomainTrackingModel{Domain: plan.Domain}
+		return observed, r.readTrackingSettings(ctx, domain, &observed)
+	})
+	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Domain Tracking",
 			fmt.Sprintf("Could not read tracking settings for domain %s: %s", domain, err.Error()),
@@ -134,8 +137,11 @@ func (r *domainTrackingResource) Update(ctx context.Context, req resource.Update
 	}
 
 	// Read back only to resolve what the plan left unknown
-	actual := DomainTrackingModel{Domain: plan.Domain}
-	if err := r.readTrackingSettings(ctx, domain, &actual); err != nil {
+	actual, err := settleTracking(ctx, trackingSettleAttempts, trackingSettleDelay, &plan, func() (DomainTrackingModel, error) {
+		observed := DomainTrackingModel{Domain: plan.Domain}
+		return observed, r.readTrackingSettings(ctx, domain, &observed)
+	})
+	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Domain Tracking",
 			fmt.Sprintf("Could not read tracking settings for domain %s: %s", domain, err.Error()),
