@@ -73,14 +73,16 @@ func (r *domainTrackingResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	// Read back to get computed values
-	if err := r.readTrackingSettings(ctx, domain, &plan); err != nil {
+	// Read back only to resolve what the plan left unknown
+	actual := DomainTrackingModel{Domain: plan.Domain}
+	if err := r.readTrackingSettings(ctx, domain, &actual); err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Domain Tracking",
 			fmt.Sprintf("Could not read tracking settings for domain %s: %s", domain, err.Error()),
 		)
 		return
 	}
+	fillUnknownsFrom(&plan, &actual)
 
 	plan.Id = types.StringValue(domain)
 
@@ -131,14 +133,16 @@ func (r *domainTrackingResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	// Read back to get computed values
-	if err := r.readTrackingSettings(ctx, domain, &plan); err != nil {
+	// Read back only to resolve what the plan left unknown
+	actual := DomainTrackingModel{Domain: plan.Domain}
+	if err := r.readTrackingSettings(ctx, domain, &actual); err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading Domain Tracking",
 			fmt.Sprintf("Could not read tracking settings for domain %s: %s", domain, err.Error()),
 		)
 		return
 	}
+	fillUnknownsFrom(&plan, &actual)
 
 	plan.Id = types.StringValue(domain)
 
@@ -230,6 +234,27 @@ func (r *domainTrackingResource) updateTrackingSettings(ctx context.Context, dom
 	}
 
 	return nil
+}
+
+// fillUnknownsFrom resolves only the attributes the plan left unknown. Terraform
+// requires a known planned value to survive apply unchanged, so a read-back that
+// disagrees must surface as drift on the next refresh, not as an apply failure.
+func fillUnknownsFrom(plan, actual *DomainTrackingModel) {
+	if plan.ClickActive.IsUnknown() {
+		plan.ClickActive = actual.ClickActive
+	}
+	if plan.OpenActive.IsUnknown() {
+		plan.OpenActive = actual.OpenActive
+	}
+	if plan.UnsubscribeActive.IsUnknown() {
+		plan.UnsubscribeActive = actual.UnsubscribeActive
+	}
+	if plan.UnsubscribeHtmlFooter.IsUnknown() {
+		plan.UnsubscribeHtmlFooter = actual.UnsubscribeHtmlFooter
+	}
+	if plan.UnsubscribeTextFooter.IsUnknown() {
+		plan.UnsubscribeTextFooter = actual.UnsubscribeTextFooter
+	}
 }
 
 // readTrackingSettings reads tracking settings from the API and updates the model
