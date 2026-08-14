@@ -1,3 +1,11 @@
+## 1.1.1 (August 14, 2026)
+
+NOTES:
+* provider: Built with Go 1.25.13 (was 1.25.8) and `golang.org/x/text` v0.39.0, patching six vulnerabilities reachable from the provider's own call graph: GO-2026-6218, GO-2026-6090, GO-2026-5972, GO-2026-5970, GO-2026-5856 and GO-2026-5026. Releases up to and including v1.1.0 are affected. Building the provider from source now requires Go 1.25.13 or later. ([#97](https://github.com/hackthebox/terraform-provider-mailgun/pull/97))
+
+ENHANCEMENTS:
+* provider: Upgraded the Mailgun SDK (`mailgun-go/v5`) from v5.16.0 to v5.19.1. ([#94](https://github.com/hackthebox/terraform-provider-mailgun/pull/94))
+
 ## 1.1.0 (August 14, 2026)
 
 DEPRECATIONS:
