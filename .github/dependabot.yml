@@ -8,6 +8,13 @@ updates:
     schedule:
       # Check for updates to Go modules every weekday
       interval: "daily"
+    # changelog-not-required satisfies the Changelog Entry gate, which Dependabot
+    # cannot otherwise pass: it writes no .changelog entry. Listing the defaults
+    # explicitly is required, since labels: replaces them rather than adding.
+    labels:
+      - "dependencies"
+      - "go"
+      - "changelog-not-required"
     groups:
       # The terraform-plugin-* packages are interdependent and share a minimum
       # Go version, so they must be bumped together (a lone bump fails to build).
@@ -24,6 +31,10 @@ updates:
     directory: "/tools"
     schedule:
       interval: "daily"
+    labels:
+      - "dependencies"
+      - "go"
+      - "changelog-not-required"
     # /tools deps all touch the same go.sum; grouping avoids a rebase cascade.
     groups:
       tools:
@@ -33,9 +44,10 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-    # TODO: Dependabot only updates hashicorp GHAs in the template repository, the following lines can be removed for consumers of this template
-    allow:
-      - dependency-name: "hashicorp/*"
+    labels:
+      - "dependencies"
+      - "github_actions"
+      - "changelog-not-required"
     groups:
       github-actions:
         patterns:
