@@ -28,7 +28,10 @@ internal/provider/<package>/
 
 `ip_allowlist/` and `send_alerts/` predate this and use flat `schema.go`/`model.go`. Follow the split convention for new work. `domains/` is the reference implementation.
 
-`test_helpers/` is shared acceptance-test scaffolding (precheck, provider factory, cleanup, randomised fixtures), not a registered package.
+Two packages under `internal/provider/` are shared helpers rather than registered resources:
+
+- `schema_validators/` — reusable `validator.String` implementations (`IPAddress`, `IPAddressOrCIDR`, `EmailAddress`). Use these instead of hand-rolling a validator.
+- `test_helpers/` — acceptance-test scaffolding (precheck, provider factory, cleanup, randomised fixtures).
 
 ## Talking to Mailgun
 
