@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
@@ -101,6 +102,10 @@ func (r *domainTrackingResource) Read(ctx context.Context, req resource.ReadRequ
 	domain := state.Domain.ValueString()
 
 	if err := r.readTrackingSettings(ctx, domain, &state); err != nil {
+		if mgerr.IsNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Error Reading Domain Tracking",
 			fmt.Sprintf("Could not read tracking settings for domain %s: %s", domain, err.Error()),
