@@ -121,9 +121,15 @@ func (r *domainSendingKeyResource) Read(ctx context.Context, req resource.ReadRe
 	readCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	apiKey, err := r.findKey(readCtx, keyID, domain)
+	apiKey, found, err := r.findKey(readCtx, keyID, domain)
 	if err != nil {
-		// Key not found - remove from state
+		resp.Diagnostics.AddError(
+			"Error Reading Domain Sending Key",
+			fmt.Sprintf("Could not read sending key %s: %s", keyID, err.Error()),
+		)
+		return
+	}
+	if !found {
 		resp.State.RemoveResource(ctx)
 		return
 	}
@@ -233,8 +239,11 @@ func (r *domainSendingKeyResource) ImportState(ctx context.Context, req resource
 	)
 }
 
-// findKey searches for a domain sending key by ID
-func (r *domainSendingKeyResource) findKey(ctx context.Context, keyID, domain string) (*mtypes.APIKey, error) {
+// findKey searches for a domain sending key by ID. The bool return
+// distinguishes "not present" from a listing failure, so Read can tell a
+// genuine miss from a transport/API error instead of treating both as
+// deleted.
+func (r *domainSendingKeyResource) findKey(ctx context.Context, keyID, domain string) (*mtypes.APIKey, bool, error) {
 	opts := &mailgun.ListAPIKeysOptions{
 		DomainName: domain,
 		Kind:       "domain",
@@ -242,16 +251,16 @@ func (r *domainSendingKeyResource) findKey(ctx context.Context, keyID, domain st
 
 	keys, err := r.client.ListAPIKeys(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("error listing API keys: %w", err)
+		return nil, false, fmt.Errorf("error listing API keys: %w", err)
 	}
 
 	for _, key := range keys {
 		if key.ID == keyID {
-			return &key, nil
+			return &key, true, nil
 		}
 	}
 
-	return nil, fmt.Errorf("sending key not found")
+	return nil, false, nil
 }
 
 // findKeyByID searches for a domain sending key by ID across all domains
