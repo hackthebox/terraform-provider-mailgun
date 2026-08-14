@@ -18,6 +18,9 @@ import (
 const (
 	createdAtLookupAttempts = 4
 	createdAtLookupDelay    = 250 * time.Millisecond
+	// Caps the whole lookup: findCredential allows 30s per call, which the retries
+	// would otherwise stack into a two minute create.
+	createdAtLookupBudget = 10 * time.Second
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -116,8 +119,11 @@ func (r *SmtpCredentialResource) Create(ctx context.Context, req resource.Create
 	plan.FullLogin = types.StringValue(fmt.Sprintf("%s@%s", login, domain))
 
 	// Try to get the created_at from the API by listing credentials
-	credential, err := findEventually(ctx, createdAtLookupAttempts, createdAtLookupDelay, func() (*mtypes.Credential, error) {
-		return r.findCredential(ctx, domain, login)
+	lookupCtx, cancelLookup := context.WithTimeout(ctx, createdAtLookupBudget)
+	defer cancelLookup()
+
+	credential, err := findEventually(lookupCtx, createdAtLookupAttempts, createdAtLookupDelay, func() (*mtypes.Credential, error) {
+		return r.findCredential(lookupCtx, domain, login)
 	})
 	if err != nil {
 		// Null, not a client-side stamp the server would contradict; Read fills it in.
@@ -327,9 +333,9 @@ func (r *SmtpCredentialResource) ImportState(ctx context.Context, req resource.I
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
-// findEventually retries find while it reports the credential missing. Mailgun's
-// credential listing lags a create, so the first lookup routinely misses one that
-// definitely exists.
+// findEventually retries find on any error until it succeeds or the attempt
+// budget runs out. Mailgun's credential listing lags a create, so the first
+// lookup routinely misses one that definitely exists.
 func findEventually(ctx context.Context, attempts int, delay time.Duration, find func() (*mtypes.Credential, error)) (*mtypes.Credential, error) {
 	for attempt := 1; ; attempt++ {
 		credential, err := find()
