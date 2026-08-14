@@ -1,3 +1,0 @@
-```release-note:bug
-provider: Retry requests that Mailgun rejects with HTTP 429, honouring `Retry-After` (capped at 30s) with exponential backoff. Previously a rate-limited response surfaced as a hard apply failure.
-```

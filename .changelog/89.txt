@@ -1,3 +1,0 @@
-```release-note:bug
-resource/mailgun_domain_tracking: Stop overwriting configured attributes with the post-apply read. A read that disagrees with the configuration now surfaces as drift on the next refresh instead of failing the apply with "Provider produced inconsistent result after apply".
-```
