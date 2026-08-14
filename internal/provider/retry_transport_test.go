@@ -7,8 +7,11 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -369,5 +372,50 @@ func TestConfigureInstallsRetryTransport(t *testing.T) {
 	}
 	if _, ok := client.HTTPClient().Transport.(rateLimitRetryTransport); !ok {
 		t.Errorf("transport = %T, want rateLimitRetryTransport so 429s are retried", client.HTTPClient().Transport)
+	}
+}
+
+func TestRoundTripReusesConnectionAcrossRetries(t *testing.T) {
+	var newConns int32
+	var calls int32
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if atomic.AddInt32(&calls, 1) == 1 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = io.WriteString(w, `{"message":"Too many requests"}`)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	server.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			atomic.AddInt32(&newConns, 1)
+		}
+	}
+	server.Start()
+	defer server.Close()
+
+	transport := rateLimitRetryTransport{
+		next:     &http.Transport{},
+		attempts: 3,
+		wait:     func(context.Context, time.Duration) error { return nil },
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	if err != nil {
+		t.Fatalf("building request: %v", err)
+	}
+
+	resp, err := transport.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if got := atomic.LoadInt32(&newConns); got != 1 {
+		t.Errorf("new connections = %d, want 1: the discarded 429 body must be drained or net/http drops the connection", got)
 	}
 }

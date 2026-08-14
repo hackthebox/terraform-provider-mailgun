@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,6 +15,7 @@ const (
 	rateLimitRetryAttempts = 3
 	baseRetryBackoff       = 2 * time.Second
 	maxRetryAfter          = 30 * time.Second
+	drainBodyLimit         = 4096
 )
 
 // rateLimitRetryTransport retries 429s. Mailgun's routes endpoints have a low
@@ -61,7 +63,12 @@ func (t rateLimitRetryTransport) retryable(resp *http.Response, attempt int) boo
 
 func (t rateLimitRetryTransport) pause(ctx context.Context, resp *http.Response, attempt int) error {
 	delay := retryAfterDelay(resp.Header.Get("Retry-After"), baseRetryBackoff<<attempt)
+
+	// net/http pools a keep-alive connection only once its body reaches EOF, so
+	// an undrained close costs the retry a fresh handshake. Bounded: untrusted body.
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, drainBodyLimit))
 	resp.Body.Close()
+
 	return t.wait(ctx, delay)
 }
 
