@@ -71,10 +71,7 @@ func retryAfterDelay(header string, fallback time.Duration) time.Duration {
 	if err != nil || seconds <= 0 {
 		return fallback
 	}
-	if delay := time.Duration(seconds) * time.Second; delay < maxRetryAfter {
-		return delay
-	}
-	return maxRetryAfter
+	return min(time.Duration(seconds)*time.Second, maxRetryAfter)
 }
 
 func rewindBody(req *http.Request) (*http.Request, bool) {
