@@ -15,6 +15,14 @@ import (
 	"github.com/mailgun/mailgun-go/v5/mtypes"
 )
 
+const (
+	createdAtLookupAttempts = 4
+	createdAtLookupDelay    = 250 * time.Millisecond
+	// Caps the whole lookup: findCredential allows 30s per call, which the retries
+	// would otherwise stack into a two minute create.
+	createdAtLookupBudget = 10 * time.Second
+)
+
 // Ensure the implementation satisfies the expected interfaces.
 var (
 	_ resource.Resource                = &SmtpCredentialResource{}
@@ -111,10 +119,15 @@ func (r *SmtpCredentialResource) Create(ctx context.Context, req resource.Create
 	plan.FullLogin = types.StringValue(fmt.Sprintf("%s@%s", login, domain))
 
 	// Try to get the created_at from the API by listing credentials
-	credential, err := r.findCredential(ctx, domain, login)
+	lookupCtx, cancelLookup := context.WithTimeout(ctx, createdAtLookupBudget)
+	defer cancelLookup()
+
+	credential, err := findEventually(lookupCtx, createdAtLookupAttempts, createdAtLookupDelay, func() (*mtypes.Credential, error) {
+		return r.findCredential(lookupCtx, domain, login)
+	})
 	if err != nil {
-		// Not fatal - we created it, just can't get the timestamp
-		plan.CreatedAt = types.StringValue(time.Now().UTC().Format(time.RFC3339))
+		// Null, not a client-side stamp the server would contradict; Read fills it in.
+		plan.CreatedAt = types.StringNull()
 	} else {
 		plan.CreatedAt = types.StringValue(time.Time(credential.CreatedAt).Format(time.RFC3339))
 	}
@@ -318,6 +331,29 @@ func (r *SmtpCredentialResource) ImportState(ctx context.Context, req resource.I
 
 	// Save imported state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+}
+
+// findEventually retries find on any error until it succeeds or the attempt
+// budget runs out. Mailgun's credential listing lags a create, so the first
+// lookup routinely misses one that definitely exists.
+func findEventually(ctx context.Context, attempts int, delay time.Duration, find func() (*mtypes.Credential, error)) (*mtypes.Credential, error) {
+	for attempt := 1; ; attempt++ {
+		credential, err := find()
+		if err == nil {
+			return credential, nil
+		}
+		if attempt >= attempts {
+			return nil, err
+		}
+
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 // findCredential searches for a specific credential by domain and login
