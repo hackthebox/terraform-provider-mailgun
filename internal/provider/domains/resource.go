@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -250,6 +251,10 @@ func (r *DomainResource) Read(ctx context.Context, req resource.ReadRequest, res
 	// Get the domain via Mailgun API
 	domainResp, err := getDomainWithRetry(readCtx, r.client, domainName, domainReadMaxAttempts, domainReadRetryDelay)
 	if err != nil {
+		if mgerr.IsNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Error Reading Domain",
 			fmt.Sprintf("Could not read domain %s: %s", domainName, err),
