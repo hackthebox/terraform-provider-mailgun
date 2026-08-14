@@ -165,11 +165,9 @@ func (r *domainTrackingResource) Delete(ctx context.Context, req resource.Delete
 	defer cancel()
 
 	// Disable all tracking
-	_ = r.putTracking(resetCtx, domain, "click", map[string]string{"active": "no"})
-	_ = r.putTracking(resetCtx, domain, "open", map[string]string{"active": "no"})
-	_ = r.putTracking(resetCtx, domain, "unsubscribe", map[string]string{
-		"active": "no", "html_footer": "", "text_footer": "",
-	})
+	_ = r.client.UpdateClickTracking(resetCtx, domain, "no")
+	_ = r.client.UpdateOpenTracking(resetCtx, domain, "no")
+	_ = r.client.UpdateUnsubscribeTracking(resetCtx, domain, "no", "", "")
 
 	// Resource removal from state is automatic
 }
@@ -205,7 +203,7 @@ func (r *domainTrackingResource) updateTrackingSettings(ctx context.Context, dom
 	if model.ClickActive.ValueBool() {
 		clickActive = "yes"
 	}
-	if err := r.putTracking(updateCtx, domain, "click", map[string]string{"active": clickActive}); err != nil {
+	if err := r.client.UpdateClickTracking(updateCtx, domain, clickActive); err != nil {
 		return fmt.Errorf("failed to update click tracking: %w", err)
 	}
 
@@ -214,7 +212,7 @@ func (r *domainTrackingResource) updateTrackingSettings(ctx context.Context, dom
 	if model.OpenActive.ValueBool() {
 		openActive = "yes"
 	}
-	if err := r.putTracking(updateCtx, domain, "open", map[string]string{"active": openActive}); err != nil {
+	if err := r.client.UpdateOpenTracking(updateCtx, domain, openActive); err != nil {
 		return fmt.Errorf("failed to update open tracking: %w", err)
 	}
 
@@ -231,19 +229,11 @@ func (r *domainTrackingResource) updateTrackingSettings(ctx context.Context, dom
 	if !model.UnsubscribeTextFooter.IsNull() {
 		textFooter = model.UnsubscribeTextFooter.ValueString()
 	}
-	if err := r.putTracking(updateCtx, domain, "unsubscribe", map[string]string{
-		"active":      unsubActive,
-		"html_footer": htmlFooter,
-		"text_footer": textFooter,
-	}); err != nil {
+	if err := r.client.UpdateUnsubscribeTracking(updateCtx, domain, unsubActive, htmlFooter, textFooter); err != nil {
 		return fmt.Errorf("failed to update unsubscribe tracking: %w", err)
 	}
 
 	return nil
-}
-
-func (r *domainTrackingResource) putTracking(ctx context.Context, domain, setting string, fields map[string]string) error {
-	return putTrackingSetting(ctx, r.client.HTTPClient(), r.client.APIBase(), r.client.APIKey(), domain, setting, fields)
 }
 
 // fillUnknownsFrom resolves only the attributes the plan left unknown. Terraform
