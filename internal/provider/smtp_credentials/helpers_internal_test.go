@@ -9,7 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/mailgun/mailgun-go/v5/mtypes"
 )
 
@@ -252,5 +256,105 @@ func TestResolveUpdatePassword(t *testing.T) {
 					gotPW, gotRotate, gotErr, tt.wantPW, tt.wantRotate, tt.wantErr)
 			}
 		})
+	}
+}
+
+// credentialObject builds a resource-shaped tftypes value, defaulting every
+// attribute to null and applying the given overrides.
+func credentialObject(t *testing.T, overrides map[string]tftypes.Value) tftypes.Value {
+	t.Helper()
+
+	objType, ok := SmtpCredentialResourceSchema().Type().TerraformType(context.Background()).(tftypes.Object)
+	if !ok {
+		t.Fatal("schema terraform type is not an object")
+	}
+
+	attrs := make(map[string]tftypes.Value, len(objType.AttributeTypes))
+	for name, attrType := range objType.AttributeTypes {
+		if override, found := overrides[name]; found {
+			attrs[name] = override
+			continue
+		}
+		attrs[name] = tftypes.NewValue(attrType, nil)
+	}
+
+	return tftypes.NewValue(objType, attrs)
+}
+
+func planPassword(t *testing.T, plan tfsdk.Plan) types.String {
+	t.Helper()
+
+	var got types.String
+	if diags := plan.GetAttribute(context.Background(), path.Root("password"), &got); diags.HasError() {
+		t.Fatalf("reading planned password: %v", diags)
+	}
+	return got
+}
+
+func TestModifyPlanPinsLegacyPasswordWhenWriteOnlyConfigured(t *testing.T) {
+	schema := SmtpCredentialResourceSchema()
+
+	config := credentialObject(t, map[string]tftypes.Value{
+		"password_wo":         tftypes.NewValue(tftypes.String, "wo-secret"),
+		"password_wo_version": tftypes.NewValue(tftypes.Number, int64(1)),
+	})
+	// An Optional+Computed password carries its prior state value into the plan.
+	plan := credentialObject(t, map[string]tftypes.Value{
+		"password":            tftypes.NewValue(tftypes.String, "legacy-secret"),
+		"password_wo_version": tftypes.NewValue(tftypes.Number, int64(1)),
+	})
+
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: plan, Schema: schema}}
+	(&SmtpCredentialResource{}).ModifyPlan(context.Background(), resource.ModifyPlanRequest{
+		Config: tfsdk.Config{Raw: config, Schema: schema},
+		Plan:   tfsdk.Plan{Raw: plan, Schema: schema},
+	}, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+	}
+	if got := planPassword(t, resp.Plan); !got.IsNull() {
+		t.Errorf("planned password = %v, want null", got)
+	}
+}
+
+func TestModifyPlanLeavesLegacyPasswordWhenWriteOnlyAbsent(t *testing.T) {
+	schema := SmtpCredentialResourceSchema()
+
+	values := credentialObject(t, map[string]tftypes.Value{
+		"password": tftypes.NewValue(tftypes.String, "legacy-secret"),
+	})
+
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: values, Schema: schema}}
+	(&SmtpCredentialResource{}).ModifyPlan(context.Background(), resource.ModifyPlanRequest{
+		Config: tfsdk.Config{Raw: values, Schema: schema},
+		Plan:   tfsdk.Plan{Raw: values, Schema: schema},
+	}, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+	}
+	if got := planPassword(t, resp.Plan); got.ValueString() != "legacy-secret" {
+		t.Errorf("planned password = %v, want %q", got, "legacy-secret")
+	}
+}
+
+func TestModifyPlanIgnoresDestroy(t *testing.T) {
+	schema := SmtpCredentialResourceSchema()
+
+	objType := SmtpCredentialResourceSchema().Type().TerraformType(context.Background())
+	nullPlan := tftypes.NewValue(objType, nil)
+
+	resp := &resource.ModifyPlanResponse{Plan: tfsdk.Plan{Raw: nullPlan, Schema: schema}}
+	(&SmtpCredentialResource{}).ModifyPlan(context.Background(), resource.ModifyPlanRequest{
+		Config: tfsdk.Config{Raw: nullPlan, Schema: schema},
+		Plan:   tfsdk.Plan{Raw: nullPlan, Schema: schema},
+	}, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+	}
+	if !resp.Plan.Raw.IsNull() {
+		t.Error("destroy plan should be left untouched")
 	}
 }

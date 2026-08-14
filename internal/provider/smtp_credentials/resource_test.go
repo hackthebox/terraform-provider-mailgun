@@ -268,6 +268,76 @@ resource "mailgun_smtp_credential" "wo" {
 `, os.Getenv("MAILGUN_API_KEY"), domain, login, password, version)
 }
 
+func testAccSmtpCredentialMigrationLegacyConfig(domain, login, password string) string {
+	return fmt.Sprintf(`
+provider "mailgun" {
+  api_key = "%s"
+}
+
+resource "mailgun_smtp_credential" "migrate" {
+  domain   = "%s"
+  login    = "%s"
+  password = "%s"
+}
+`, os.Getenv("MAILGUN_API_KEY"), domain, login, password)
+}
+
+func testAccSmtpCredentialMigrationWriteOnlyConfig(domain, login, password string, version int) string {
+	return fmt.Sprintf(`
+provider "mailgun" {
+  api_key = "%s"
+}
+
+resource "mailgun_smtp_credential" "migrate" {
+  domain              = "%s"
+  login               = "%s"
+  password_wo         = "%s"
+  password_wo_version = %d
+}
+`, os.Getenv("MAILGUN_API_KEY"), domain, login, password, version)
+}
+
+// Migrating an existing credential from the deprecated stateful password to
+// password_wo must drop password from state without tripping Terraform's
+// "known planned value must be identical in the new state" rule.
+func TestAccSmtpCredentialResource_LegacyToWriteOnlyMigration(t *testing.T) {
+	if os.Getenv("MAILGUN_API_KEY") == "" {
+		t.Skip("MAILGUN_API_KEY environment variable is not set")
+	}
+	domainName := os.Getenv("MAILGUN_TEST_DOMAIN")
+	if domainName == "" {
+		t.Skip("MAILGUN_TEST_DOMAIN environment variable is not set")
+	}
+
+	loginName := test_helpers.RandomString(8)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { test_helpers.AccPreCheck(t) },
+		ProtoV6ProviderFactories: test_helpers.ProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckSmtpCredentialDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccSmtpCredentialMigrationLegacyConfig(domainName, loginName, "legacy-initial-123"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.migrate", "password", "legacy-initial-123"),
+				),
+			},
+			{
+				Config: testAccSmtpCredentialMigrationWriteOnlyConfig(domainName, loginName, "wo-migrated-456", 1),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("mailgun_smtp_credential.migrate", "password_wo_version", "1"),
+					resource.TestCheckNoResourceAttr("mailgun_smtp_credential.migrate", "password_wo"),
+					resource.TestCheckNoResourceAttr("mailgun_smtp_credential.migrate", "password"),
+				),
+			},
+			{
+				Config:   testAccSmtpCredentialMigrationWriteOnlyConfig(domainName, loginName, "wo-migrated-456", 1),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
 func TestAccSmtpCredentialResource_WriteOnly(t *testing.T) {
 	if os.Getenv("MAILGUN_API_KEY") == "" {
 		t.Skip("MAILGUN_API_KEY environment variable is not set")

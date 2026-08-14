@@ -29,6 +29,7 @@ var (
 	_ resource.Resource                = &SmtpCredentialResource{}
 	_ resource.ResourceWithConfigure   = &SmtpCredentialResource{}
 	_ resource.ResourceWithImportState = &SmtpCredentialResource{}
+	_ resource.ResourceWithModifyPlan  = &SmtpCredentialResource{}
 )
 
 // SmtpCredentialResource is the resource implementation.
@@ -62,6 +63,24 @@ func (r *SmtpCredentialResource) Configure(_ context.Context, req resource.Confi
 	}
 
 	r.client = client
+}
+
+// ModifyPlan keeps the deprecated password attribute null in the plan whenever the
+// write-only path is in use. password is Optional+Computed, so for an existing
+// credential Terraform proposes the prior state value; Update then writes null and
+// trips Terraform's rule that a known planned value must survive apply unchanged.
+func (r *SmtpCredentialResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var passwordWO types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("password_wo"), &passwordWO)...)
+	if resp.Diagnostics.HasError() || passwordWO.IsNull() {
+		return
+	}
+
+	resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("password"), types.StringNull())...)
 }
 
 // Create creates a new SMTP credential.
