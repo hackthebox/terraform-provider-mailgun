@@ -114,3 +114,14 @@ func TestCreatedAtLookupActuallyBacksOff(t *testing.T) {
 		t.Errorf("createdAtLookupDelay = %v; too long to sit in a create", createdAtLookupDelay)
 	}
 }
+
+func TestCreatedAtLookupBudgetCoversItsAttempts(t *testing.T) {
+	if createdAtLookupBudget <= 0 {
+		t.Fatalf("createdAtLookupBudget = %v; a non-positive budget expires before the first lookup runs", createdAtLookupBudget)
+	}
+
+	// The budget has to outlast the waits it wraps, or later attempts never happen.
+	if minimum := time.Duration(createdAtLookupAttempts-1) * createdAtLookupDelay; createdAtLookupBudget <= minimum {
+		t.Errorf("createdAtLookupBudget = %v, must exceed the %v spent waiting between attempts", createdAtLookupBudget, minimum)
+	}
+}
