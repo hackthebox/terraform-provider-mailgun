@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
@@ -139,8 +140,7 @@ func (r *mailingListMemberResource) Read(ctx context.Context, req resource.ReadR
 
 	member, err := r.client.GetMember(readCtx, memberAddress, listAddress)
 	if err != nil {
-		// Check if member doesn't exist
-		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "404") {
+		if mgerr.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
