@@ -152,3 +152,17 @@ func TestSettleTrackingAbortsOnCancelledContext(t *testing.T) {
 		t.Errorf("reads = %d, want 1 before the context cancels the wait", reads)
 	}
 }
+
+func TestTrackingSettleBudgetIsSecondsNotMilliseconds(t *testing.T) {
+	if trackingSettleDelay <= 0 {
+		t.Fatalf("trackingSettleDelay = %v; a non-positive delay re-reads with no time to converge", trackingSettleDelay)
+	}
+
+	budget := time.Duration(trackingSettleAttempts-1) * trackingSettleDelay
+	if budget < 2*time.Second {
+		t.Errorf("settle budget = %v; 750ms was already shown to be too short in CI, want at least 2s", budget)
+	}
+	if budget > 10*time.Second {
+		t.Errorf("settle budget = %v; too long to sit inside every apply", budget)
+	}
+}

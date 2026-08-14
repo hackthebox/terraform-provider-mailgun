@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	trackingSettleAttempts = 4
-	trackingSettleDelay    = 250 * time.Millisecond
+	trackingSettleAttempts = 6
+	trackingSettleDelay    = 500 * time.Millisecond
 )
 
 // settleTracking re-reads until the API reports what was just written. Mailgun
