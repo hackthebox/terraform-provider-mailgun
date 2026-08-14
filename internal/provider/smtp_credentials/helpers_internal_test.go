@@ -105,3 +105,12 @@ func TestFindEventuallyDefaultsToFourAttempts(t *testing.T) {
 		t.Errorf("calls = %d, want 4: the package default budget", calls)
 	}
 }
+
+func TestCreatedAtLookupActuallyBacksOff(t *testing.T) {
+	if createdAtLookupDelay <= 0 {
+		t.Fatalf("createdAtLookupDelay = %v; a zero delay retries the listing with no time to catch up", createdAtLookupDelay)
+	}
+	if createdAtLookupDelay > time.Second {
+		t.Errorf("createdAtLookupDelay = %v; too long to sit in a create", createdAtLookupDelay)
+	}
+}
