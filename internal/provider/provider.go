@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -95,6 +96,18 @@ func (p *mailgunProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if config.ApiKey.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("api_key"),
+			"Unknown API Key Configuration",
+			"The api_key value is not known until apply, so the provider cannot tell "+
+				"whether it was configured. Falling back to MAILGUN_API_KEY here would "+
+				"silently authenticate as a different account. "+
+				"Apply whatever produces the key first, or set api_key statically.",
+		)
 		return
 	}
 
