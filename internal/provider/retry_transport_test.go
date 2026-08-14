@@ -4,6 +4,7 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -375,14 +376,17 @@ func TestConfigureInstallsRetryTransport(t *testing.T) {
 	}
 }
 
-func TestRoundTripReusesConnectionAcrossRetries(t *testing.T) {
-	var newConns int32
-	var calls int32
+// newConnsForRetry drives a real transport through one 429 retry and reports how
+// many fresh connections the server saw.
+func newConnsForRetry(t *testing.T, rateLimitedBody []byte) int32 {
+	t.Helper()
+
+	var newConns, calls int32
 
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if atomic.AddInt32(&calls, 1) == 1 {
 			w.WriteHeader(http.StatusTooManyRequests)
-			_, _ = io.WriteString(w, `{"message":"Too many requests"}`)
+			_, _ = w.Write(rateLimitedBody)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -415,7 +419,20 @@ func TestRoundTripReusesConnectionAcrossRetries(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
-	if got := atomic.LoadInt32(&newConns); got != 1 {
+	return atomic.LoadInt32(&newConns)
+}
+
+func TestRoundTripReusesConnectionAcrossRetries(t *testing.T) {
+	if got := newConnsForRetry(t, []byte(`{"message":"Too many requests"}`)); got != 1 {
 		t.Errorf("new connections = %d, want 1: the discarded 429 body must be drained or net/http drops the connection", got)
+	}
+}
+
+func TestRoundTripDrainsUpToTheLimitOnly(t *testing.T) {
+	if got := newConnsForRetry(t, bytes.Repeat([]byte("x"), 4096)); got != 1 {
+		t.Errorf("new connections = %d, want 1 for a body exactly at the 4096 byte drain limit", got)
+	}
+	if got := newConnsForRetry(t, bytes.Repeat([]byte("x"), 4097)); got != 2 {
+		t.Errorf("new connections = %d, want 2 once the body exceeds the drain limit and cannot reach EOF", got)
 	}
 }
