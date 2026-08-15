@@ -13,6 +13,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
+
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 )
 
 var (
@@ -70,17 +72,16 @@ func (d *sendAlertDataSource) Read(ctx context.Context, req datasource.ReadReque
 	apiClient := NewSendAlertsAPIClient(d.client)
 	alertResp, err := apiClient.GetSendAlert(readCtx, name)
 	if err != nil {
+		if mgerr.IsNotFound(err) {
+			resp.Diagnostics.AddError(
+				"Send Alert Not Found",
+				fmt.Sprintf("Send alert with name '%s' was not found.", name),
+			)
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Error Reading Mailgun Send Alert",
 			fmt.Sprintf("Could not read send alert %s: %s", name, err.Error()),
-		)
-		return
-	}
-
-	if alertResp == nil {
-		resp.Diagnostics.AddError(
-			"Send Alert Not Found",
-			fmt.Sprintf("Send alert with name '%s' was not found.", name),
 		)
 		return
 	}

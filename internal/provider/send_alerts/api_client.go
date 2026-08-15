@@ -12,6 +12,8 @@ import (
 	"net/http"
 
 	"github.com/mailgun/mailgun-go/v5"
+
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 )
 
 const (
@@ -67,7 +69,10 @@ func (c *SendAlertsAPIClient) ListSendAlerts(ctx context.Context) (*SendAlertsLi
 	return &result, nil
 }
 
-// GetSendAlert retrieves a single send alert by name.
+// GetSendAlert retrieves a single send alert by name. Its error is wrapped
+// in mgerr.StatusError, including for a 404: callers use mgerr.IsNotFound to
+// tell a missing alert apart from any other failure, rather than a (nil,
+// nil) result that conflated "absent" with "success".
 func (c *SendAlertsAPIClient) GetSendAlert(ctx context.Context, name string) (*SendAlertAPIResponse, error) {
 	url := c.client.APIBase() + sendAlertsEndpoint + "/" + name
 
@@ -90,16 +95,12 @@ func (c *SendAlertsAPIClient) GetSendAlert(ctx context.Context, name string) (*S
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, nil // Alert not found
-	}
-
 	if resp.StatusCode != http.StatusOK {
 		var msgResp MessageResponse
 		if json.Unmarshal(body, &msgResp) == nil && msgResp.Message != "" {
-			return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, msgResp.Message)
+			return nil, mgerr.StatusError(fmt.Sprintf("API error (status %d): %s", resp.StatusCode, msgResp.Message), resp.StatusCode)
 		}
-		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+		return nil, mgerr.StatusError(fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(body)), resp.StatusCode)
 	}
 
 	var result SendAlertAPIResponse
