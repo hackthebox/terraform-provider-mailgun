@@ -196,15 +196,12 @@ func (r *webhookResource) Delete(ctx context.Context, req resource.DeleteRequest
 	defer cancel()
 
 	err := r.client.DeleteWebhook(deleteCtx, domain, webhookType)
-	if err != nil {
-		// Ignore not found errors during delete
-		if !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "404") {
-			resp.Diagnostics.AddError(
-				"Error Deleting Mailgun Webhook",
-				fmt.Sprintf("Could not delete webhook %s for domain %s: %s", webhookType, domain, err.Error()),
-			)
-			return
-		}
+	if err != nil && !mgerr.IsNotFound(err) {
+		resp.Diagnostics.AddError(
+			"Error Deleting Mailgun Webhook",
+			fmt.Sprintf("Could not delete webhook %s for domain %s: %s", webhookType, domain, err.Error()),
+		)
+		return
 	}
 }
 

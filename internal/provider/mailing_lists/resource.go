@@ -6,7 +6,6 @@ package mailing_lists
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
@@ -227,15 +226,12 @@ func (r *mailingListResource) Delete(ctx context.Context, req resource.DeleteReq
 	defer cancel()
 
 	err := r.client.DeleteMailingList(deleteCtx, address)
-	if err != nil {
-		// Ignore not found errors during delete
-		if !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "404") {
-			resp.Diagnostics.AddError(
-				"Error Deleting Mailgun Mailing List",
-				fmt.Sprintf("Could not delete mailing list %s: %s", address, err.Error()),
-			)
-			return
-		}
+	if err != nil && !mgerr.IsNotFound(err) {
+		resp.Diagnostics.AddError(
+			"Error Deleting Mailgun Mailing List",
+			fmt.Sprintf("Could not delete mailing list %s: %s", address, err.Error()),
+		)
+		return
 	}
 }
 

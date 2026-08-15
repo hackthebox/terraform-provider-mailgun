@@ -241,15 +241,12 @@ func (r *mailingListMemberResource) Delete(ctx context.Context, req resource.Del
 	defer cancel()
 
 	err := r.client.DeleteMember(deleteCtx, memberAddress, listAddress)
-	if err != nil {
-		// Ignore not found errors during delete
-		if !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "404") {
-			resp.Diagnostics.AddError(
-				"Error Deleting Mailgun Mailing List Member",
-				fmt.Sprintf("Could not delete member %s from list %s: %s", memberAddress, listAddress, err.Error()),
-			)
-			return
-		}
+	if err != nil && !mgerr.IsNotFound(err) {
+		resp.Diagnostics.AddError(
+			"Error Deleting Mailgun Mailing List Member",
+			fmt.Sprintf("Could not delete member %s from list %s: %s", memberAddress, listAddress, err.Error()),
+		)
+		return
 	}
 }
 
