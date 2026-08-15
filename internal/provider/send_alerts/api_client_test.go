@@ -100,3 +100,40 @@ func TestGetSendAlert_RawBodyFallbackOnUnparseableJSON(t *testing.T) {
 		t.Errorf("Error() = %q, want %q", got, want)
 	}
 }
+
+// A 404 on delete must surface as a typed error the caller can detect with
+// mgerr.IsNotFound: a hand-rolled client that only ever returns a bare
+// fmt.Errorf here would make the resource's Delete guard structurally
+// unable to treat "already deleted" as success.
+func TestDeleteSendAlert_NotFoundIsTypedError(t *testing.T) {
+	client := testSendAlertsAPIClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"alert not found"}`))
+	})
+
+	err := client.DeleteSendAlert(context.Background(), "missing-alert")
+	if err == nil {
+		t.Fatal("expected a non-nil error for a 404 response")
+	}
+	if !mgerr.IsNotFound(err) {
+		t.Errorf("expected mgerr.IsNotFound(err) = true, got err = %v", err)
+	}
+	if got, want := err.Error(), "API error (status 404): alert not found"; got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
+	}
+}
+
+func TestDeleteSendAlert_500IsNotTreatedAsNotFound(t *testing.T) {
+	client := testSendAlertsAPIClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"message":"boom"}`))
+	})
+
+	err := client.DeleteSendAlert(context.Background(), "my-alert")
+	if err == nil {
+		t.Fatal("expected an error for a 500 response")
+	}
+	if mgerr.IsNotFound(err) {
+		t.Error("expected mgerr.IsNotFound(err) = false for a 500 response")
+	}
+}

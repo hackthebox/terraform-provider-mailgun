@@ -194,7 +194,10 @@ func (c *SendAlertsAPIClient) UpdateSendAlert(ctx context.Context, name string, 
 	return nil
 }
 
-// DeleteSendAlert deletes a send alert by name.
+// DeleteSendAlert deletes a send alert by name. Its error is wrapped in
+// mgerr.StatusError, including for a 404, so the caller can tell a
+// genuine "already deleted" apart from any other failure via
+// mgerr.IsNotFound instead of hard-failing the destroy either way.
 func (c *SendAlertsAPIClient) DeleteSendAlert(ctx context.Context, name string) error {
 	url := c.client.APIBase() + sendAlertsEndpoint + "/" + name
 
@@ -220,9 +223,9 @@ func (c *SendAlertsAPIClient) DeleteSendAlert(ctx context.Context, name string) 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		var msgResp MessageResponse
 		if json.Unmarshal(body, &msgResp) == nil && msgResp.Message != "" {
-			return fmt.Errorf("API error (status %d): %s", resp.StatusCode, msgResp.Message)
+			return mgerr.StatusError(fmt.Sprintf("API error (status %d): %s", resp.StatusCode, msgResp.Message), resp.StatusCode)
 		}
-		return fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+		return mgerr.StatusError(fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(body)), resp.StatusCode)
 	}
 
 	return nil

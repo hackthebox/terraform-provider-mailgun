@@ -23,5 +23,9 @@ resource/mailgun_webhook: Delete no longer silently ignores a delete failure who
 ```
 
 ```release-note:enhancement
-resource/mailgun_send_alert, data-source/mailgun_send_alert: Internal 404 handling now uses a typed error instead of a `(nil, nil)` result, matching every other resource. All existing call sites were already correct, so this changes no observable behavior except that Update's post-update read-back now surfaces a 404 as a diagnostic instead of silently mapping partial state.
+resource/mailgun_send_alert, data-source/mailgun_send_alert: Internal 404 handling now uses a typed error instead of a `(nil, nil)` result, matching every other resource. Read, ImportState and the data source were already correct, so this changes no observable behavior there except that Update's post-update read-back now surfaces a 404 as a diagnostic instead of silently mapping partial state.
+```
+
+```release-note:bug
+resource/mailgun_send_alert: Delete no longer hard-fails when the alert was already deleted out of band; a genuine 404 is now treated as "already deleted", matching every other resource's Delete guard.
 ```

@@ -211,7 +211,7 @@ func (r *sendAlertResource) Delete(ctx context.Context, req resource.DeleteReque
 
 	apiClient := NewSendAlertsAPIClient(r.client)
 	err := apiClient.DeleteSendAlert(deleteCtx, name)
-	if err != nil {
+	if err != nil && !mgerr.IsNotFound(err) {
 		resp.Diagnostics.AddError(
 			"Error Deleting Mailgun Send Alert",
 			fmt.Sprintf("Could not delete send alert %s: %s", name, err.Error()),
