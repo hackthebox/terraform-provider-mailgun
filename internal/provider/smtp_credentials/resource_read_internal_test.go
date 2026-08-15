@@ -81,6 +81,11 @@ func TestFindCredential_ReturnsErrorOnListFailure(t *testing.T) {
 	if found {
 		t.Error("found must be false when err is non-nil")
 	}
+	// The wire status must survive the wrap (%w, not %v), or callers using
+	// errors.As/Is (and mgerr.IsNotFound, transitively) lose the cause.
+	if got := mailgun.GetStatusFromErr(err); got != http.StatusInternalServerError {
+		t.Errorf("GetStatusFromErr(err) = %d, want %d (the wire status must survive the wrap)", got, http.StatusInternalServerError)
+	}
 }
 
 func readCredential(t *testing.T, client *mailgun.Client, domain, login string) *resource.ReadResponse {

@@ -5,6 +5,7 @@ package smtp_credentials
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 
@@ -13,6 +14,63 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 	"github.com/mailgun/mailgun-go/v5"
 )
+
+// lookupCreatedCredential must surface a genuine listing failure as its own
+// error, not collapse it into the "not found yet" sentinel findEventually
+// also retries on: the two must stay distinguishable so a caller inspecting
+// the error (e.g. via mailgun.GetStatusFromErr) sees the real cause.
+func TestLookupCreatedCredential_ReturnsUnderlyingErrorOnListingFailure(t *testing.T) {
+	client := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"message":"boom"}`))
+	})
+
+	r := &SmtpCredentialResource{client: client}
+	_, err := r.lookupCreatedCredential(context.Background(), "example.com", "user")
+
+	if err == nil {
+		t.Fatal("expected an error when the listing itself fails")
+	}
+	if errors.Is(err, errCredentialNotFound) {
+		t.Error("a listing failure must not be reported as the not-found sentinel")
+	}
+	if got := mailgun.GetStatusFromErr(err); got != http.StatusInternalServerError {
+		t.Errorf("GetStatusFromErr(err) = %d, want %d (the underlying error must survive)", got, http.StatusInternalServerError)
+	}
+}
+
+func TestLookupCreatedCredential_ReturnsSentinelWhenNotYetVisible(t *testing.T) {
+	client := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"total_count":0,"items":[]}`))
+	})
+
+	r := &SmtpCredentialResource{client: client}
+	_, err := r.lookupCreatedCredential(context.Background(), "example.com", "user")
+
+	if !errors.Is(err, errCredentialNotFound) {
+		t.Errorf("err = %v, want errCredentialNotFound", err)
+	}
+}
+
+func TestLookupCreatedCredential_ReturnsCredentialWhenFound(t *testing.T) {
+	client := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(createdCredentialListResponse())
+	})
+
+	r := &SmtpCredentialResource{client: client}
+	cred, err := r.lookupCreatedCredential(context.Background(), "example.com", "user")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cred.Login != "user@example.com" {
+		t.Errorf("cred.Login = %q, want %q", cred.Login, "user@example.com")
+	}
+}
 
 func createCredential(t *testing.T, client *mailgun.Client, planOverrides, configOverrides map[string]tftypes.Value) *resource.CreateResponse {
 	t.Helper()

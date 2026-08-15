@@ -163,14 +163,7 @@ func (r *SmtpCredentialResource) Create(ctx context.Context, req resource.Create
 	defer cancelLookup()
 
 	credential, err := findEventually(lookupCtx, createdAtLookupAttempts, createdAtLookupDelay, func() (*mtypes.Credential, error) {
-		cred, found, ferr := r.findCredential(lookupCtx, domain, login)
-		if ferr != nil {
-			return nil, ferr
-		}
-		if !found {
-			return nil, errCredentialNotFound
-		}
-		return cred, nil
+		return r.lookupCreatedCredential(lookupCtx, domain, login)
 	})
 	if err != nil {
 		// Null, not a client-side stamp the server would contradict; Read fills it in.
@@ -444,6 +437,23 @@ func resolveUpdatePassword(passwordWO, planPW types.String, planVersion, stateVe
 	default:
 		return planPW.ValueString(), true, ""
 	}
+}
+
+// lookupCreatedCredential adapts findCredential's (found, err) result into
+// the single-error shape findEventually retries on. A genuine listing
+// failure and "not yet visible" are both worth retrying during Create, but
+// they stay distinguishable in the returned error: a listing failure
+// surfaces as-is (so mailgun.GetStatusFromErr still resolves it), while
+// "not yet visible" surfaces as errCredentialNotFound.
+func (r *SmtpCredentialResource) lookupCreatedCredential(ctx context.Context, domain, login string) (*mtypes.Credential, error) {
+	cred, found, err := r.findCredential(ctx, domain, login)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, errCredentialNotFound
+	}
+	return cred, nil
 }
 
 // findCredential searches for a specific credential by domain and login. The

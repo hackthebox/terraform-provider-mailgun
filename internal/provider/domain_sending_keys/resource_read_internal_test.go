@@ -81,6 +81,11 @@ func TestFindKey_ReturnsErrorOnListFailure(t *testing.T) {
 	if found {
 		t.Error("found must be false when err is non-nil")
 	}
+	// The wire status must survive the wrap (%w, not %v), or mgerr.IsNotFound
+	// and callers using errors.As/Is lose the ability to inspect the cause.
+	if got := mailgun.GetStatusFromErr(err); got != http.StatusInternalServerError {
+		t.Errorf("GetStatusFromErr(err) = %d, want %d (the wire status must survive the wrap)", got, http.StatusInternalServerError)
+	}
 }
 
 // readStateObject builds a resource-shaped tftypes.Value, defaulting every
