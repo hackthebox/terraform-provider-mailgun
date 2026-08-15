@@ -5,6 +5,7 @@ package smtp_credentials
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,7 +15,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
 	"github.com/mailgun/mailgun-go/v5/mtypes"
+
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 )
+
+// errCredentialNotFound drives findEventually's retry loop during Create: a
+// scan miss right after creation is Mailgun's listing lagging the write, not
+// a real absence, so it is retried exactly like any other lookup error.
+var errCredentialNotFound = errors.New("credential not found")
 
 const (
 	createdAtLookupAttempts = 4
@@ -157,7 +165,7 @@ func (r *SmtpCredentialResource) Create(ctx context.Context, req resource.Create
 	defer cancelLookup()
 
 	credential, err := findEventually(lookupCtx, createdAtLookupAttempts, createdAtLookupDelay, func() (*mtypes.Credential, error) {
-		return r.findCredential(lookupCtx, domain, login)
+		return r.lookupCreatedCredential(lookupCtx, domain, login)
 	})
 	if err != nil {
 		// Null, not a client-side stamp the server would contradict; Read fills it in.
@@ -192,9 +200,15 @@ func (r *SmtpCredentialResource) Read(ctx context.Context, req resource.ReadRequ
 	login := state.Login.ValueString()
 
 	// Find the credential in the API
-	credential, err := r.findCredential(ctx, domain, login)
+	credential, found, err := r.findCredentialForRead(ctx, domain, login)
 	if err != nil {
-		// Credential not found - remove from state
+		resp.Diagnostics.AddError(
+			"Error Reading SMTP Credential",
+			fmt.Sprintf("Could not read SMTP credential %s@%s: %s", login, domain, err),
+		)
+		return
+	}
+	if !found {
 		resp.State.RemoveResource(ctx)
 		return
 	}
@@ -338,11 +352,18 @@ func (r *SmtpCredentialResource) ImportState(ctx context.Context, req resource.I
 	}
 
 	// Find the credential in the API
-	credential, err := r.findCredential(ctx, domain, login)
+	credential, found, err := r.findCredential(ctx, domain, login)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Importing SMTP Credential",
 			fmt.Sprintf("Could not find SMTP credential %s@%s: %s", login, domain, err),
+		)
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError(
+			"SMTP Credential Not Found",
+			fmt.Sprintf("No SMTP credential %s@%s exists to import.", login, domain),
 		)
 		return
 	}
@@ -420,8 +441,43 @@ func resolveUpdatePassword(passwordWO, planPW types.String, planVersion, stateVe
 	}
 }
 
-// findCredential searches for a specific credential by domain and login
-func (r *SmtpCredentialResource) findCredential(ctx context.Context, domain, login string) (*mtypes.Credential, error) {
+// lookupCreatedCredential adapts findCredential's (found, err) result into
+// the single-error shape findEventually retries on. A genuine listing
+// failure and "not yet visible" are both worth retrying during Create, but
+// they stay distinguishable in the returned error: a listing failure
+// surfaces as-is (so mailgun.GetStatusFromErr still resolves it), while
+// "not yet visible" surfaces as errCredentialNotFound.
+func (r *SmtpCredentialResource) lookupCreatedCredential(ctx context.Context, domain, login string) (*mtypes.Credential, error) {
+	cred, found, err := r.findCredential(ctx, domain, login)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, errCredentialNotFound
+	}
+	return cred, nil
+}
+
+// findCredentialForRead adapts findCredential for Read: a genuine 404 means
+// the parent domain was deleted out of band, which collapses to the same
+// "not found" outcome as an empty listing so Read only has one not-found
+// branch to handle instead of two.
+func (r *SmtpCredentialResource) findCredentialForRead(ctx context.Context, domain, login string) (*mtypes.Credential, bool, error) {
+	cred, found, err := r.findCredential(ctx, domain, login)
+	if err != nil {
+		if mgerr.IsNotFound(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return cred, found, nil
+}
+
+// findCredential searches for a specific credential by domain and login. The
+// bool return distinguishes "not present" from a listing failure, so Read
+// can tell a genuine miss from a transport/API error instead of treating
+// both as deleted (see domain_sending_keys.findKey for the same shape).
+func (r *SmtpCredentialResource) findCredential(ctx context.Context, domain, login string) (*mtypes.Credential, bool, error) {
 	// Create context with timeout
 	findCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -435,14 +491,14 @@ func (r *SmtpCredentialResource) findCredential(ctx context.Context, domain, log
 			// The API returns full login (login@domain), so we need to compare appropriately
 			expectedFullLogin := fmt.Sprintf("%s@%s", login, domain)
 			if cred.Login == expectedFullLogin || cred.Login == login {
-				return &cred, nil
+				return &cred, true, nil
 			}
 		}
 	}
 
 	if err := iterator.Err(); err != nil {
-		return nil, fmt.Errorf("error listing credentials: %w", err)
+		return nil, false, fmt.Errorf("error listing credentials: %w", err)
 	}
 
-	return nil, fmt.Errorf("credential not found")
+	return nil, false, nil
 }

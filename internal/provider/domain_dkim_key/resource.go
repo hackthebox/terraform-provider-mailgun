@@ -14,6 +14,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
 	"github.com/mailgun/mailgun-go/v5/mtypes"
+
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 )
 
 var (
@@ -137,6 +139,10 @@ func (r *domainDkimKeyResource) Read(ctx context.Context, req resource.ReadReque
 	// List domain keys and find ours
 	domainKey, found, err := r.findDomainKey(readCtx, domain, selector)
 	if err != nil {
+		if mgerr.IsNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Error Reading Domain DKIM Key",
 			fmt.Sprintf("Could not read DKIM key for domain %s with selector %s: %s", domain, selector, err.Error()),

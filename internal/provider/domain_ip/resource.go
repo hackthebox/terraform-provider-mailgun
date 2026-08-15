@@ -12,6 +12,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
+
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 )
 
 var (
@@ -103,6 +105,10 @@ func (r *domainIPResource) Read(ctx context.Context, req resource.ReadRequest, r
 	// List domain IPs and check if our IP exists
 	ips, err := r.client.ListDomainIPs(readCtx, domain)
 	if err != nil {
+		if mgerr.IsNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Error Reading Domain IPs",
 			fmt.Sprintf("Could not read IPs for domain %s: %s", domain, err.Error()),

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
@@ -146,8 +147,7 @@ func (r *templateResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	template, err := r.client.GetTemplate(readCtx, domain, name)
 	if err != nil {
-		// Check if template doesn't exist
-		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "404") {
+		if mgerr.IsNotFound(err) {
 			resp.State.RemoveResource(ctx)
 			return
 		}
