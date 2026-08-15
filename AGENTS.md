@@ -41,11 +41,18 @@ Two packages under `internal/provider/` are shared helpers rather than registere
 
 ## Conventions that matter
 
-**Detecting 404s.** Use the SDK's typed `mailgun.GetStatusFromErr(err) == http.StatusNotFound`, as in `domains/resource.go`. Do not match on error text. Several packages still do (`strings.Contains(err.Error(), "404")`); that is a known defect being fixed, not a pattern to copy.
+**Detecting 404s.** Use `mgerr.IsNotFound(err)` (`internal/provider/mgerr`), not error-text matching. It wraps `mailgun.GetStatusFromErr(err) == http.StatusNotFound`, which resolves through `errors.As` against `*mailgun.UnexpectedResponseError` the same way the SDK's own `RateLimitedError` does, so a `%w`-wrapped error still matches. No package should contain `strings.Contains(err.Error(), "404")` or similar; that pattern has been removed everywhere except two genuine exceptions:
+
+- `webhooks/resource.go` `Read` also treats `"returned no urls"` as absence, because `GetWebhook` signals a missing webhook as a 200 with an empty URL list, not a 404 (`webhook_type` is `stringvalidator.OneOf`-constrained, so a real 404 there is unreachable).
+- `template_versions/resource.go` `Delete` keeps a dedicated `"deleting active version is not allowed"` check: that is a genuine business-rule response, not a 404 alias, and gets its own diagnostic instead of being swallowed.
+
+**In-memory listing scans.** A handful of lookups (`ip_allowlist.GetIPAllowlistEntry`, `domain_dkim_key.findDomainKey`, `domain_ip`'s IP scan) have no per-item endpoint: they list (a single 200 response) and scan for a match. These return `(T, bool, error)`, never a synthetic 404. `found` distinguishes a genuine scan miss from a wire-level failure of the underlying list call; `err` is reserved for that failure and must never be treated as "not found" by the caller. Don't collapse the two into a single "not found" error the way `mailgun.GetStatusFromErr` would for a real 404.
+
+**Hand-rolled clients producing a typed 404.** `ip_allowlist/client.go` and `send_alerts/api_client.go` build requests by hand, so they never produce a real `*mailgun.UnexpectedResponseError` and `mgerr.IsNotFound` would always report false for them. Where a caller needs to branch on status (today: `ip_allowlist`'s `Delete` and `send_alerts`'s `GetSendAlert`), wrap the error in `mgerr.StatusError(msg, status)` instead of a bare `fmt.Errorf`. Its `Error()` is exactly `msg` (never the SDK's deprecated, `%#v`-dumping `UnexpectedResponseError.String()`), while `mgerr.IsNotFound`/`mailgun.GetStatusFromErr` still resolve `status` through it. Don't add the wrapper to a block whose caller never branches on status; a plain `fmt.Errorf` is enough there.
 
 **Missing resources.** When `Read` finds the resource gone, call `resp.State.RemoveResource(ctx)` so Terraform plans a recreate. Returning an error instead leaves users with a `plan` that fails until they hand-run `terraform state rm`.
 
-**Deletes.** Only swallow an error from `Delete` when it is genuinely a 404. Swallowing anything else drops the resource from state while it still exists in Mailgun.
+**Deletes.** Only swallow an error from `Delete` when `mgerr.IsNotFound(err)` is true. Swallowing anything else drops the resource from state while it still exists in Mailgun.
 
 **Secrets.** Mark passwords, keys and secrets `Sensitive: true` in both resource and data source schemas.
 
