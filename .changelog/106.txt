@@ -35,5 +35,13 @@ resource/mailgun_domain_sending_key: Read no longer treats a failed API-key list
 ```
 
 ```release-note:bug
-resource/mailgun_smtp_credential: Read no longer treats a failed credential listing (500, rate limit, transport error) the same as the credential being deleted. A listing failure during `terraform plan` now surfaces as a diagnostic with state left intact instead of silently dropping a live credential from state.
+resource/mailgun_smtp_credential: Read no longer treats a failed credential listing (500, rate limit, transport error) the same as the credential being deleted. A listing failure during `terraform plan` now surfaces as a diagnostic with state left intact instead of silently dropping a live credential from state. Separately, a genuine 404 from the domain-scoped listing (the parent domain was deleted out-of-band) now removes the resource from state instead of leaving `plan`/`apply` permanently stuck.
+```
+
+```release-note:bug
+resource/mailgun_domain_ip: Stop hard-erroring when the parent domain is deleted out-of-band. Read now removes the resource from state on a genuine 404 from the domain-scoped IP listing instead of leaving `plan`/`apply` permanently stuck.
+```
+
+```release-note:bug
+resource/mailgun_domain_dkim_key: Stop hard-erroring when the parent domain is deleted out-of-band. Read now removes the resource from state on a genuine 404 from the domain-scoped key listing instead of leaving `plan`/`apply` permanently stuck.
 ```

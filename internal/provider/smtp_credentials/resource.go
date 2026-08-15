@@ -15,6 +15,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
 	"github.com/mailgun/mailgun-go/v5/mtypes"
+
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 )
 
 // errCredentialNotFound drives findEventually's retry loop during Create: a
@@ -198,7 +200,7 @@ func (r *SmtpCredentialResource) Read(ctx context.Context, req resource.ReadRequ
 	login := state.Login.ValueString()
 
 	// Find the credential in the API
-	credential, found, err := r.findCredential(ctx, domain, login)
+	credential, found, err := r.findCredentialForRead(ctx, domain, login)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Reading SMTP Credential",
@@ -454,6 +456,21 @@ func (r *SmtpCredentialResource) lookupCreatedCredential(ctx context.Context, do
 		return nil, errCredentialNotFound
 	}
 	return cred, nil
+}
+
+// findCredentialForRead adapts findCredential for Read: a genuine 404 means
+// the parent domain was deleted out of band, which collapses to the same
+// "not found" outcome as an empty listing so Read only has one not-found
+// branch to handle instead of two.
+func (r *SmtpCredentialResource) findCredentialForRead(ctx context.Context, domain, login string) (*mtypes.Credential, bool, error) {
+	cred, found, err := r.findCredential(ctx, domain, login)
+	if err != nil {
+		if mgerr.IsNotFound(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return cred, found, nil
 }
 
 // findCredential searches for a specific credential by domain and login. The

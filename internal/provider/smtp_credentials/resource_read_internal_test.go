@@ -103,6 +103,50 @@ func readCredential(t *testing.T, client *mailgun.Client, domain, login string) 
 	return resp
 }
 
+// A genuine 404 from the domain-scoped credentials listing means the parent
+// domain was deleted out of band, not that the listing merely failed; Read
+// must recover the same way it does for an empty listing.
+func TestRead_RemovesResourceOnGenuine404(t *testing.T) {
+	client := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"Domain not found"}`))
+	})
+
+	resp := readCredential(t, client, "gone.example.com", "user")
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+	}
+	if !resp.State.Raw.IsNull() {
+		t.Error("expected the resource to be removed from state on a genuine 404")
+	}
+}
+
+func TestRead_UpdatesStateWhenCredentialFound(t *testing.T) {
+	client := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"total_count":1,"items":[{"login":"user@example.com","created_at":"Mon, 02 Jan 2006 15:04:05 -0700"}]}`))
+	})
+
+	resp := readCredential(t, client, "example.com", "user")
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+	}
+
+	var state SmtpCredentialModel
+	if diags := resp.State.Get(context.Background(), &state); diags.HasError() {
+		t.Fatalf("unexpected diagnostics reading back state: %v", diags)
+	}
+	if state.FullLogin.ValueString() != "user@example.com" {
+		t.Errorf("state.FullLogin = %q, want %q", state.FullLogin.ValueString(), "user@example.com")
+	}
+	if state.Id.ValueString() != "example.com/user" {
+		t.Errorf("state.Id = %q, want %q", state.Id.ValueString(), "example.com/user")
+	}
+}
+
 func TestRead_RemovesResourceWhenCredentialAbsent(t *testing.T) {
 	client := testClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
