@@ -1,5 +1,9 @@
 ```release-note:bug
-resource/mailgun_ip_allowlist: Read and Delete no longer mistake a 500 (or any error whose message happens to contain "404" or "not found") for a missing entry, which previously could drop a live resource from state on Read, or silently ignore a real delete failure. Detection is now a typed check on the actual HTTP status.
+resource/mailgun_ip_allowlist: Read no longer mistakes a failed allowlist listing (a 500, a 429, or a transport error) for a deleted entry and drops a live resource from state. A missing entry is now determined by scanning a successful listing, so a lookup failure surfaces as a diagnostic instead.
+```
+
+```release-note:bug
+resource/mailgun_ip_allowlist: Delete no longer silently ignores a real delete failure whose error message happens to contain "404" or "not found"; only a genuine 404 status is now treated as "already deleted".
 ```
 
 ```release-note:bug
