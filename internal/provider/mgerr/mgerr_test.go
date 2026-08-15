@@ -63,3 +63,32 @@ func TestIsNotFound(t *testing.T) {
 		})
 	}
 }
+
+// TestStatusError verifies the producer half of the contract: hand-rolled
+// clients that build a StatusError get an Error() string exactly as given
+// (no UnexpectedResponseError/ExpectedOneOf/%#v dump), while
+// mailgun.GetStatusFromErr and IsNotFound still resolve the status through it.
+func TestStatusError(t *testing.T) {
+	err := StatusError("API error (status 404): nope", 404)
+
+	if got, want := err.Error(), "API error (status 404): nope"; got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
+	}
+	if got, want := mailgun.GetStatusFromErr(err), 404; got != want {
+		t.Errorf("mailgun.GetStatusFromErr() = %d, want %d", got, want)
+	}
+	if !IsNotFound(err) {
+		t.Error("IsNotFound() = false, want true")
+	}
+}
+
+func TestStatusError_NonNotFoundStatus(t *testing.T) {
+	err := StatusError("API error (status 500): boom", 500)
+
+	if got, want := mailgun.GetStatusFromErr(err), 500; got != want {
+		t.Errorf("mailgun.GetStatusFromErr() = %d, want %d", got, want)
+	}
+	if IsNotFound(err) {
+		t.Error("IsNotFound() = true, want false")
+	}
+}

@@ -70,11 +70,13 @@ func SetupIPAllowlistForTests(t *testing.T) string {
 	mg := mailgun.NewMailgun(apiKey)
 	client := ip_allowlist.NewIPAllowlistClient(mg)
 
-	// Check if IP is already in allowlist
-	existingEntry, err := client.GetIPAllowlistEntry(ctx, currentIP)
+	// Check if IP is already in allowlist. A lookup failure is treated the
+	// same as "not present" (matching this helper's pre-existing behavior):
+	// either way we fall through to adding the entry below.
+	existingEntry, found, _ := client.GetIPAllowlistEntry(ctx, currentIP)
 	shouldCleanup := true
 
-	if err == nil {
+	if found {
 		// IP already exists - check if it was added by a previous test run
 		if strings.HasPrefix(existingEntry.Description, testRunnerDescriptionPrefix) {
 			// This was added by a previous test run that didn't clean up - we'll clean it up

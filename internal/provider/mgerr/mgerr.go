@@ -19,3 +19,29 @@ import (
 func IsNotFound(err error) bool {
 	return mailgun.GetStatusFromErr(err) == http.StatusNotFound
 }
+
+// statusError carries a caller-supplied message alongside the status the SDK
+// expects to find via errors.As. Its own Error() never delegates to the
+// wrapped *mailgun.UnexpectedResponseError: that type's Error() is an alias
+// for the deprecated String(), which dumps Method/URL/ExpectedOneOf with
+// %#v and would leak Go syntax into a terraform apply diagnostic.
+type statusError struct {
+	msg     string
+	wrapped *mailgun.UnexpectedResponseError
+}
+
+func (e *statusError) Error() string { return e.msg }
+func (e *statusError) Unwrap() error { return e.wrapped }
+
+// StatusError builds an error whose message is exactly msg, but which
+// mailgun.GetStatusFromErr (and therefore IsNotFound) resolves to status.
+// It exists for hand-rolled API clients that don't go through the SDK's own
+// request path and so never produce a real *mailgun.UnexpectedResponseError.
+// Expected, Method, URL and Data are intentionally left zero: nothing reads
+// them, since msg already carries the readable message.
+func StatusError(msg string, status int) error {
+	return &statusError{
+		msg:     msg,
+		wrapped: &mailgun.UnexpectedResponseError{Actual: status},
+	}
+}

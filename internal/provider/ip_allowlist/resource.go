@@ -6,12 +6,13 @@ package ip_allowlist
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
+
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 )
 
 var (
@@ -99,17 +100,16 @@ func (r *ipAllowlistResource) Read(ctx context.Context, req resource.ReadRequest
 	readCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	entry, err := r.client.GetIPAllowlistEntry(readCtx, address)
+	entry, found, err := r.client.GetIPAllowlistEntry(readCtx, address)
 	if err != nil {
-		// Check if entry doesn't exist
-		if strings.Contains(err.Error(), "not found") {
-			resp.State.RemoveResource(ctx)
-			return
-		}
 		resp.Diagnostics.AddError(
 			"Error Reading IP Allowlist Entry",
 			fmt.Sprintf("Could not read IP allowlist entry %s: %s", address, err.Error()),
 		)
+		return
+	}
+	if !found {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -168,15 +168,12 @@ func (r *ipAllowlistResource) Delete(ctx context.Context, req resource.DeleteReq
 	defer cancel()
 
 	err := r.client.DeleteIPAllowlistEntry(deleteCtx, address)
-	if err != nil {
-		// Ignore not found errors during delete
-		if !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "404") {
-			resp.Diagnostics.AddError(
-				"Error Deleting IP Allowlist Entry",
-				fmt.Sprintf("Could not delete IP allowlist entry %s: %s", address, err.Error()),
-			)
-			return
-		}
+	if err != nil && !mgerr.IsNotFound(err) {
+		resp.Diagnostics.AddError(
+			"Error Deleting IP Allowlist Entry",
+			fmt.Sprintf("Could not delete IP allowlist entry %s: %s", address, err.Error()),
+		)
+		return
 	}
 }
 
@@ -188,11 +185,18 @@ func (r *ipAllowlistResource) ImportState(ctx context.Context, req resource.Impo
 	importCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	entry, err := r.client.GetIPAllowlistEntry(importCtx, address)
+	entry, found, err := r.client.GetIPAllowlistEntry(importCtx, address)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error Importing IP Allowlist Entry",
 			fmt.Sprintf("Could not import IP allowlist entry %s: %s", address, err.Error()),
+		)
+		return
+	}
+	if !found {
+		resp.Diagnostics.AddError(
+			"IP Allowlist Entry Not Found",
+			fmt.Sprintf("IP allowlist entry %s was not found.", address),
 		)
 		return
 	}
