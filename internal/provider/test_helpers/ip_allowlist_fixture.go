@@ -18,9 +18,13 @@ import (
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/ip_allowlist"
 )
 
+// getPublicIPURL is the endpoint GetPublicIP queries. Overridden in this
+// package's tests to point at a fake server instead of the real ipify.org.
+var getPublicIPURL = "https://api.ipify.org"
+
 // GetPublicIP retrieves the current machine's public IP address.
 func GetPublicIP(ctx context.Context) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.ipify.org", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, getPublicIPURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
@@ -41,6 +45,11 @@ func GetPublicIP(ctx context.Context) (string, error) {
 
 // testRunnerDescriptionPrefix is used to identify IPs added by the test framework
 const testRunnerDescriptionPrefix = "terraform-provider-test-runner-"
+
+// testAPIBaseOverride, set only by this package's tests, replaces the
+// Mailgun API base after client construction so SetupIPAllowlistForTests can
+// be exercised against a local fake server instead of the live API.
+var testAPIBaseOverride string
 
 // SetupIPAllowlistForTests adds the test runner's IP to the Mailgun allowlist
 // and returns the IP address. Uses t.Cleanup() to ensure the IP is removed
@@ -68,6 +77,11 @@ func SetupIPAllowlistForTests(t *testing.T) string {
 
 	// Create Mailgun client and IP allowlist client
 	mg := mailgun.NewMailgun(apiKey)
+	if testAPIBaseOverride != "" {
+		if err := mg.SetAPIBase(testAPIBaseOverride); err != nil {
+			t.Fatalf("Failed to set test API base: %v", err)
+		}
+	}
 	client := ip_allowlist.NewIPAllowlistClient(mg)
 
 	// Check if IP is already in allowlist. A lookup failure is treated the
