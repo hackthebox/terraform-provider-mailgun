@@ -122,6 +122,19 @@ func TestRead_ScanMissRemovesResource(t *testing.T) {
 	}
 }
 
+func TestDelete_SuccessProducesNoDiagnostics(t *testing.T) {
+	client := testIPAllowlistClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	})
+
+	resp := deleteIPAllowlist(t, client, "203.0.113.1")
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics for a successful delete: %v", resp.Diagnostics)
+	}
+}
+
 func TestDelete_GenuineNotFoundIsIgnored(t *testing.T) {
 	client := testIPAllowlistClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

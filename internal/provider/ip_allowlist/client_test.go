@@ -96,6 +96,26 @@ func TestDeleteIPAllowlistEntry_GenuineNotFound(t *testing.T) {
 	if !mgerr.IsNotFound(err) {
 		t.Fatalf("expected mgerr.IsNotFound(err) = true, got err = %v", err)
 	}
+	if got, want := err.Error(), "API error (status 404): entry not found"; got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
+	}
+}
+
+// When the body doesn't parse as JSON (or carries no "message"), the error
+// must fall back to the raw response body rather than silently succeeding.
+func TestDeleteIPAllowlistEntry_RawBodyFallbackOnUnparseableJSON(t *testing.T) {
+	client := testIPAllowlistClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`not json`))
+	})
+
+	err := client.DeleteIPAllowlistEntry(context.Background(), "203.0.113.1")
+	if err == nil {
+		t.Fatal("expected an error for an unparseable body")
+	}
+	if got, want := err.Error(), "API error (status 500): not json"; got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
+	}
 }
 
 // A 500 whose body happens to contain the literal "404" must not resolve as
@@ -112,5 +132,8 @@ func TestDeleteIPAllowlistEntry_500MentioningLiteral404(t *testing.T) {
 	}
 	if mgerr.IsNotFound(err) {
 		t.Error("expected mgerr.IsNotFound(err) = false for a 500 response")
+	}
+	if got, want := err.Error(), "API error (status 500): upstream returned 404 from internal service"; got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
 	}
 }

@@ -61,6 +61,9 @@ func TestGetSendAlert_NotFoundIsTypedError(t *testing.T) {
 	if alert != nil {
 		t.Errorf("expected nil alert, got %+v", alert)
 	}
+	if got, want := err.Error(), "API error (status 404): alert not found"; got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
+	}
 }
 
 func TestGetSendAlert_500IsNotTreatedAsNotFound(t *testing.T) {
@@ -75,5 +78,25 @@ func TestGetSendAlert_500IsNotTreatedAsNotFound(t *testing.T) {
 	}
 	if mgerr.IsNotFound(err) {
 		t.Error("expected mgerr.IsNotFound(err) = false for a 500 response")
+	}
+	if got, want := err.Error(), "API error (status 500): boom"; got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
+	}
+}
+
+// When the body doesn't parse as JSON (or carries no "message"), the error
+// must fall back to the raw response body rather than silently succeeding.
+func TestGetSendAlert_RawBodyFallbackOnUnparseableJSON(t *testing.T) {
+	client := testSendAlertsAPIClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`not json`))
+	})
+
+	_, err := client.GetSendAlert(context.Background(), "my-alert")
+	if err == nil {
+		t.Fatal("expected an error for an unparseable body")
+	}
+	if got, want := err.Error(), "API error (status 500): not json"; got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
 	}
 }
