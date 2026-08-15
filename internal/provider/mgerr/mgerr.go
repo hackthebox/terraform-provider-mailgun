@@ -14,11 +14,8 @@ import (
 // Mailgun. It resolves through wrapped errors the same way
 // mailgun.GetStatusFromErr does (errors.As against *mailgun.UnexpectedResponseError),
 // so a %w-wrapped error or one nested inside *mailgun.RateLimitedError still
-// matches. Transport failures and other status codes report -1 from the SDK
-// and so are never mistaken for a 404.
+// matches. Transport failures, other status codes and a nil error all report
+// -1 from the SDK and so are never mistaken for a 404.
 func IsNotFound(err error) bool {
-	if err == nil {
-		return false
-	}
 	return mailgun.GetStatusFromErr(err) == http.StatusNotFound
 }
