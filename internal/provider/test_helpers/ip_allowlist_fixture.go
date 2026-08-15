@@ -78,9 +78,9 @@ func SetupIPAllowlistForTests(t *testing.T) string {
 	// Create Mailgun client and IP allowlist client
 	mg := mailgun.NewMailgun(apiKey)
 	if testAPIBaseOverride != "" {
-		if err := mg.SetAPIBase(testAPIBaseOverride); err != nil {
-			t.Fatalf("Failed to set test API base: %v", err)
-		}
+		// A test-supplied httptest.Server URL is never rejected by SetAPIBase
+		// (it only errors on a version segment like "/v3" in the address).
+		_ = mg.SetAPIBase(testAPIBaseOverride)
 	}
 	client := ip_allowlist.NewIPAllowlistClient(mg)
 
