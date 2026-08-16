@@ -1,3 +1,0 @@
-```release-note:enhancement
-resource/mailgun_ip_allowlist: Validate IP and CIDR syntax during planning; also validate related dedicated-IP, DKIM key-size, and mailing-list email fields.
-```
