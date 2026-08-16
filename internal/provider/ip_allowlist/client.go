@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/mailgun/mailgun-go/v5"
+
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 )
 
 // IPAllowlistEntry represents a single IP allowlist entry from the Mailgun API.
@@ -91,19 +93,23 @@ func (c *IPAllowlistClient) ListIPAllowlist(ctx context.Context) ([]IPAllowlistE
 }
 
 // GetIPAllowlistEntry retrieves a specific IP allowlist entry by address.
-func (c *IPAllowlistClient) GetIPAllowlistEntry(ctx context.Context, address string) (*IPAllowlistEntry, error) {
+// There is no per-entry endpoint: it lists all entries (a single 200
+// response) and scans for a match. found is false on a scan miss; err is
+// only non-nil for a genuine failure of the underlying list request, and
+// must never be treated as "not found" by the caller.
+func (c *IPAllowlistClient) GetIPAllowlistEntry(ctx context.Context, address string) (*IPAllowlistEntry, bool, error) {
 	entries, err := c.ListIPAllowlist(ctx)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	for _, entry := range entries {
 		if entry.IPAddress == address {
-			return &entry, nil
+			return &entry, true, nil
 		}
 	}
 
-	return nil, fmt.Errorf("IP allowlist entry not found: %s", address)
+	return nil, false, nil
 }
 
 // CreateIPAllowlistEntry adds a new IP allowlist entry.
@@ -184,7 +190,10 @@ func (c *IPAllowlistClient) UpdateIPAllowlistEntry(ctx context.Context, address,
 	return nil
 }
 
-// DeleteIPAllowlistEntry removes an IP allowlist entry.
+// DeleteIPAllowlistEntry removes an IP allowlist entry. Its error, unlike
+// the other methods on this client, is wrapped in mgerr.StatusError: the
+// caller ignores a genuine 404 as "already gone" and must be able to tell
+// that apart from a 500 whose body happens to mention "not found" or "404".
 func (c *IPAllowlistClient) DeleteIPAllowlistEntry(ctx context.Context, address string) error {
 	apiURL := c.getBaseURL() + "/ip_whitelist?address=" + url.QueryEscape(address)
 
@@ -209,9 +218,9 @@ func (c *IPAllowlistClient) DeleteIPAllowlistEntry(ctx context.Context, address 
 	if resp.StatusCode != http.StatusOK {
 		var errResp IPAllowlistResponse
 		if err := json.Unmarshal(body, &errResp); err == nil && errResp.Message != "" {
-			return fmt.Errorf("API error (status %d): %s", resp.StatusCode, errResp.Message)
+			return mgerr.StatusError(fmt.Sprintf("API error (status %d): %s", resp.StatusCode, errResp.Message), resp.StatusCode)
 		}
-		return fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+		return mgerr.StatusError(fmt.Sprintf("API error (status %d): %s", resp.StatusCode, string(body)), resp.StatusCode)
 	}
 
 	return nil

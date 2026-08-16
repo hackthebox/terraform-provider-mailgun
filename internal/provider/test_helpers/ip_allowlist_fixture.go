@@ -18,9 +18,13 @@ import (
 	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/ip_allowlist"
 )
 
+// getPublicIPURL is the endpoint GetPublicIP queries. Overridden in this
+// package's tests to point at a fake server instead of the real ipify.org.
+var getPublicIPURL = "https://api.ipify.org"
+
 // GetPublicIP retrieves the current machine's public IP address.
 func GetPublicIP(ctx context.Context) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.ipify.org", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, getPublicIPURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
@@ -41,6 +45,11 @@ func GetPublicIP(ctx context.Context) (string, error) {
 
 // testRunnerDescriptionPrefix is used to identify IPs added by the test framework
 const testRunnerDescriptionPrefix = "terraform-provider-test-runner-"
+
+// testAPIBaseOverride, set only by this package's tests, replaces the
+// Mailgun API base after client construction so SetupIPAllowlistForTests can
+// be exercised against a local fake server instead of the live API.
+var testAPIBaseOverride string
 
 // SetupIPAllowlistForTests adds the test runner's IP to the Mailgun allowlist
 // and returns the IP address. Uses t.Cleanup() to ensure the IP is removed
@@ -68,13 +77,20 @@ func SetupIPAllowlistForTests(t *testing.T) string {
 
 	// Create Mailgun client and IP allowlist client
 	mg := mailgun.NewMailgun(apiKey)
+	if testAPIBaseOverride != "" {
+		// A test-supplied httptest.Server URL is never rejected by SetAPIBase
+		// (it only errors on a version segment like "/v3" in the address).
+		_ = mg.SetAPIBase(testAPIBaseOverride)
+	}
 	client := ip_allowlist.NewIPAllowlistClient(mg)
 
-	// Check if IP is already in allowlist
-	existingEntry, err := client.GetIPAllowlistEntry(ctx, currentIP)
+	// Check if IP is already in allowlist. A lookup failure is treated the
+	// same as "not present" (matching this helper's pre-existing behavior):
+	// either way we fall through to adding the entry below.
+	existingEntry, found, _ := client.GetIPAllowlistEntry(ctx, currentIP)
 	shouldCleanup := true
 
-	if err == nil {
+	if found {
 		// IP already exists - check if it was added by a previous test run
 		if strings.HasPrefix(existingEntry.Description, testRunnerDescriptionPrefix) {
 			// This was added by a previous test run that didn't clean up - we'll clean it up

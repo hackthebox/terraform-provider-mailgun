@@ -13,6 +13,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/mailgun/mailgun-go/v5"
+
+	"github.com/hackthebox/terraform-provider-mailgun/internal/provider/mgerr"
 )
 
 var (
@@ -113,16 +115,14 @@ func (r *sendAlertResource) Read(ctx context.Context, req resource.ReadRequest, 
 	apiClient := NewSendAlertsAPIClient(r.client)
 	alertResp, err := apiClient.GetSendAlert(readCtx, name)
 	if err != nil {
+		if mgerr.IsNotFound(err) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Error Reading Mailgun Send Alert",
 			fmt.Sprintf("Could not read send alert %s: %s", name, err.Error()),
 		)
-		return
-	}
-
-	if alertResp == nil {
-		// Alert not found, remove from state
-		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -187,11 +187,9 @@ func (r *sendAlertResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	if alertResp != nil {
-		r.mapAPIResponseToState(ctx, alertResp, &plan, &resp.Diagnostics)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+	r.mapAPIResponseToState(ctx, alertResp, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	diags = resp.State.Set(ctx, &plan)
@@ -213,7 +211,7 @@ func (r *sendAlertResource) Delete(ctx context.Context, req resource.DeleteReque
 
 	apiClient := NewSendAlertsAPIClient(r.client)
 	err := apiClient.DeleteSendAlert(deleteCtx, name)
-	if err != nil {
+	if err != nil && !mgerr.IsNotFound(err) {
 		resp.Diagnostics.AddError(
 			"Error Deleting Mailgun Send Alert",
 			fmt.Sprintf("Could not delete send alert %s: %s", name, err.Error()),
@@ -231,17 +229,16 @@ func (r *sendAlertResource) ImportState(ctx context.Context, req resource.Import
 	apiClient := NewSendAlertsAPIClient(r.client)
 	alertResp, err := apiClient.GetSendAlert(readCtx, name)
 	if err != nil {
+		if mgerr.IsNotFound(err) {
+			resp.Diagnostics.AddError(
+				"Send Alert Not Found",
+				fmt.Sprintf("Send alert with name '%s' was not found.", name),
+			)
+			return
+		}
 		resp.Diagnostics.AddError(
 			"Error Importing Mailgun Send Alert",
 			fmt.Sprintf("Could not import send alert %s: %s", name, err.Error()),
-		)
-		return
-	}
-
-	if alertResp == nil {
-		resp.Diagnostics.AddError(
-			"Send Alert Not Found",
-			fmt.Sprintf("Send alert with name '%s' was not found.", name),
 		)
 		return
 	}

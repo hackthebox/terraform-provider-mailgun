@@ -261,11 +261,10 @@ func (r *templateVersionResource) Delete(ctx context.Context, req resource.Delet
 
 	err := r.client.DeleteTemplateVersion(deleteCtx, domain, templateName, tag)
 	if err != nil {
-		errStr := err.Error()
-		// Ignore not found errors during delete
-		if strings.Contains(errStr, "not found") || strings.Contains(errStr, "404") {
+		if mgerr.IsNotFound(err) {
 			return
 		}
+		errStr := err.Error()
 		// Provide a clearer error message for active version deletion
 		if strings.Contains(errStr, "deleting active version is not allowed") {
 			resp.Diagnostics.AddError(

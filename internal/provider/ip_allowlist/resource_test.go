@@ -230,7 +230,7 @@ func ensureIPAllowlistAbsent(t *testing.T, address string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if _, err := client.GetIPAllowlistEntry(ctx, address); err != nil {
+	if _, found, err := client.GetIPAllowlistEntry(ctx, address); err != nil || !found {
 		return
 	}
 	if err := client.DeleteIPAllowlistEntry(ctx, address); err != nil {
