@@ -10,6 +10,63 @@ import (
 	"testing"
 )
 
+// An unreadable allowlist must be left untouched. A failed listing cannot be
+// distinguished from a missing entry, so creating one and registering its
+// cleanup would delete an address a human added by hand, and the address is
+// the runner's own IP. The 500 body says "not found" so a text-matching
+// regression fails here too; only the listing fails, since the realistic case
+// is a blip on one call rather than a dead API.
+func TestSetupIPAllowlistForTests_UnreadableAllowlistIsNotMutated(t *testing.T) {
+	const fakeIP = "203.0.113.9"
+
+	ipSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(fakeIP))
+	}))
+	t.Cleanup(ipSrv.Close)
+
+	var mu sync.Mutex
+	var methods []string
+
+	mailgunSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		methods = append(methods, r.Method)
+		mu.Unlock()
+
+		if r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"message":"backend not found"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(mailgunSrv.Close)
+
+	origIPURL, origBaseOverride := getPublicIPURL, testAPIBaseOverride
+	getPublicIPURL = ipSrv.URL
+	testAPIBaseOverride = mailgunSrv.URL
+	t.Cleanup(func() {
+		getPublicIPURL, testAPIBaseOverride = origIPURL, origBaseOverride
+	})
+
+	// Registered before the call under test so it runs after that call's own
+	// cleanup, catching any delete it schedules.
+	t.Cleanup(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, m := range methods {
+			if m != http.MethodGet {
+				t.Errorf("allowlist mutated after an unreadable listing: saw %s (all: %v)", m, methods)
+			}
+		}
+	})
+
+	t.Setenv("MAILGUN_API_KEY", "test-key")
+
+	if got := SetupIPAllowlistForTests(t); got != fakeIP {
+		t.Errorf("expected the fixture to still return %q, got %q", fakeIP, got)
+	}
+}
+
 // A manually added entry found via the allowlist lookup must be left alone:
 // no create call to re-add it, no cleanup call to remove it. If the
 // lookup's ctx were lost (e.g. swapped for nil), request construction would

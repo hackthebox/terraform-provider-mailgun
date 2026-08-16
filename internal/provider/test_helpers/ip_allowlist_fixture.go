@@ -84,10 +84,14 @@ func SetupIPAllowlistForTests(t *testing.T) string {
 	}
 	client := ip_allowlist.NewIPAllowlistClient(mg)
 
-	// Check if IP is already in allowlist. A lookup failure is treated the
-	// same as "not present" (matching this helper's pre-existing behavior):
-	// either way we fall through to adding the entry below.
-	existingEntry, found, _ := client.GetIPAllowlistEntry(ctx, currentIP)
+	// A failed listing is not a missing entry. Falling through would create an
+	// entry and register the cleanup below, which then deletes an address a
+	// human may have added by hand, and the address is this runner's own IP.
+	existingEntry, found, err := client.GetIPAllowlistEntry(ctx, currentIP)
+	if err != nil {
+		t.Logf("Could not read the IP allowlist for %s, leaving it untouched: %v", currentIP, err)
+		return currentIP
+	}
 	shouldCleanup := true
 
 	if found {
