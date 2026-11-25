@@ -1,3 +1,20 @@
+## 1.3.0 (November 25, 2026)
+
+NOTES:
+* provider: Built with Go 1.26.11 (was 1.26.10), patching GO-2026-6859 in `net/http`, which is reachable from the provider's own call graph. Releases up to and including v1.2.1 are affected. Building the provider from source now requires Go 1.26.11 or later. ([#119](https://github.com/hackthebox/terraform-provider-mailgun/pull/119))
+* resource/mailgun_domain_sending_key: Because changing `expiration` now replaces the key, a configuration whose `expiration` differs from state creates a new key and deletes the old one on the next apply. Imported keys are stored with `expiration = 0`, so an imported key configured with a non-zero `expiration` is replaced. Without `create_before_destroy`, the old key is deleted before the new one exists. ([#118](https://github.com/hackthebox/terraform-provider-mailgun/pull/118))
+
+ENHANCEMENTS:
+* resource/mailgun_domain_sending_key: Add `deletion_delay`, the number of seconds (0 to 3600) to wait before deleting the key. Together with `create_before_destroy` it keeps the old key valid while consumers pick up the replacement. Changing it updates the resource in place. Existing keys plan no changes after the upgrade. ([#118](https://github.com/hackthebox/terraform-provider-mailgun/pull/118))
+
+BUG FIXES:
+* resource/mailgun_domain_sending_key: Changing `expiration` now plans a replacement. It used to plan an in-place update that always failed at apply time. ([#118](https://github.com/hackthebox/terraform-provider-mailgun/pull/118))
+
+## 1.2.1 (October 25, 2026)
+
+NOTES:
+* provider: Built with Go 1.26.10 (was 1.25.13), `golang.org/x/net` v0.60.0 and `google.golang.org/grpc` v1.83.2, patching twelve vulnerabilities reachable from the provider's own call graph: GO-2026-6809, GO-2026-6617, GO-2026-6613, GO-2026-6612, GO-2026-6611, GO-2026-6610, GO-2026-6608, GO-2026-6607, GO-2026-6605, GO-2026-6603, GO-2026-6443 and GO-2026-6348. Releases up to and including v1.2.0 are affected. Building the provider from source now requires Go 1.26.10 or later. ([#116](https://github.com/hackthebox/terraform-provider-mailgun/pull/116))
+
 ## 1.2.0 (August 16, 2026)
 
 ENHANCEMENTS:
