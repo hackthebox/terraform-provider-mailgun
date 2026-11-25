@@ -1,3 +1,0 @@
-```release-note:note
-provider: Built with Go 1.26.11 (was 1.26.10), patching GO-2026-6859 in `net/http`, which is reachable from the provider's own call graph. Releases up to and including v1.2.1 are affected. Building the provider from source now requires Go 1.26.11 or later.
-```
