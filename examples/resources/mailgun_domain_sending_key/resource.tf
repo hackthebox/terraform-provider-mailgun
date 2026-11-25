@@ -21,7 +21,8 @@ resource "mailgun_domain_sending_key" "temporary" {
 }
 
 # Rotate without downtime: bump `rotation` to replace the key. The new key is
-# created and written to Vault first; the old one is deleted 5 minutes later.
+# created and everything that references its secret is updated first; the old
+# key is deleted 5 minutes later.
 variable "rotation" {
   type    = number
   default = 1

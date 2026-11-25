@@ -8,8 +8,10 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/defaults"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func int64Attribute(t *testing.T, name string) schema.Int64Attribute {
@@ -21,43 +23,75 @@ func int64Attribute(t *testing.T, name string) schema.Int64Attribute {
 	return attr
 }
 
-func requiresReplace(attr schema.Int64Attribute) bool {
-	want := int64planmodifier.RequiresReplace().Description(context.Background())
-	for _, m := range attr.PlanModifiers {
-		if m.Description(context.Background()) == want {
-			return true
+func requiresReplace(t *testing.T, attr schema.Attribute) bool {
+	t.Helper()
+	ctx := context.Background()
+	switch a := attr.(type) {
+	case schema.Int64Attribute:
+		want := int64planmodifier.RequiresReplace().Description(ctx)
+		for _, m := range a.PlanModifiers {
+			if m.Description(ctx) == want {
+				return true
+			}
 		}
+	case schema.StringAttribute:
+		want := stringplanmodifier.RequiresReplace().Description(ctx)
+		for _, m := range a.PlanModifiers {
+			if m.Description(ctx) == want {
+				return true
+			}
+		}
+	default:
+		t.Fatalf("unexpected attribute type %T", attr)
 	}
 	return false
 }
 
-// deletion_delay only matters at delete time, so changing it must update in place.
-// A replacement would rotate the key just to change how long a later delete waits.
-func TestSchema_DeletionDelayIsOptionalDefaultsToZeroAndUpdatesInPlace(t *testing.T) {
+func deletionDelayAccepts(attr schema.Int64Attribute, value int64) bool {
+	req := validator.Int64Request{ConfigValue: types.Int64Value(value)}
+	resp := &validator.Int64Response{}
+	for _, v := range attr.Validators {
+		v.ValidateInt64(context.Background(), req, resp)
+	}
+	return !resp.Diagnostics.HasError()
+}
+
+// deletion_delay has no default: an unset value stays null, so upgrading the
+// provider plans no diff on existing keys. Changing it must update in place, or
+// a new delay would rotate the key.
+func TestSchema_DeletionDelayIsOptionalWithoutDefaultAndUpdatesInPlace(t *testing.T) {
 	attr := int64Attribute(t, "deletion_delay")
 
 	if !attr.Optional {
 		t.Error("deletion_delay must be optional")
 	}
-	if attr.Default == nil {
-		t.Fatal("deletion_delay must have a default")
+	if attr.Computed || attr.Default != nil {
+		t.Error("deletion_delay must not be computed or have a default")
 	}
-	resp := &defaults.Int64Response{}
-	attr.Default.DefaultInt64(context.Background(), defaults.Int64Request{}, resp)
-	if got := resp.PlanValue.ValueInt64(); got != 0 {
-		t.Errorf("deletion_delay default = %d, want 0", got)
-	}
-	if requiresReplace(attr) {
+	if requiresReplace(t, attr) {
 		t.Error("deletion_delay must not force replacement")
-	}
-	if len(attr.Validators) == 0 {
-		t.Error("deletion_delay must reject negative values")
 	}
 }
 
-// Update cannot change a Mailgun key, so a changed expiration must plan a replacement.
-func TestSchema_ExpirationRequiresReplace(t *testing.T) {
-	if !requiresReplace(int64Attribute(t, "expiration")) {
-		t.Error("expiration must force replacement")
+func TestSchema_DeletionDelayBounds(t *testing.T) {
+	attr := int64Attribute(t, "deletion_delay")
+
+	for value, want := range map[int64]bool{-1: false, 0: true, 3600: true, 3601: false} {
+		if got := deletionDelayAccepts(attr, value); got != want {
+			t.Errorf("deletion_delay = %d accepted: %t, want %t", value, got, want)
+		}
+	}
+}
+
+// Update writes the plan to state without calling Mailgun, which is only safe
+// while every attribute Mailgun stores forces replacement.
+func TestSchema_EveryConfigurableAttributeButDeletionDelayRequiresReplace(t *testing.T) {
+	for name, attr := range DomainSendingKeyResourceSchema().Attributes {
+		if name == "deletion_delay" || (!attr.IsRequired() && !attr.IsOptional()) {
+			continue
+		}
+		if !requiresReplace(t, attr) {
+			t.Errorf("%s must force replacement", name)
+		}
 	}
 }

@@ -187,13 +187,14 @@ func (r *domainSendingKeyResource) Delete(ctx context.Context, req resource.Dele
 
 	keyID := state.Id.ValueString()
 
-	delay := time.Duration(state.DeletionDelay.ValueInt64()) * time.Second
-	if err := r.wait(ctx, delay); err != nil {
-		resp.Diagnostics.AddError(
-			"Domain Sending Key Deletion Interrupted",
-			fmt.Sprintf("Stopped waiting %s before deleting sending key %s, so it was not deleted: %s", delay, keyID, err.Error()),
-		)
-		return
+	if delay := time.Duration(state.DeletionDelay.ValueInt64()) * time.Second; delay > 0 {
+		if err := r.wait(ctx, delay); err != nil {
+			resp.Diagnostics.AddError(
+				"Domain Sending Key Deletion Interrupted",
+				fmt.Sprintf("Stopped waiting %s before deleting sending key %s, so it was not deleted: %s", delay, keyID, err.Error()),
+			)
+			return
+		}
 	}
 
 	deleteCtx, cancel := context.WithTimeout(ctx, 30*time.Second)

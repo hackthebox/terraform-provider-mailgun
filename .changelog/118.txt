@@ -1,7 +1,11 @@
 ```release-note:enhancement
-resource/mailgun_domain_sending_key: Add `deletion_delay`, the number of seconds to wait before deleting the key. Together with `create_before_destroy` it keeps the old key valid while consumers pick up the replacement. Changing it updates the resource in place.
+resource/mailgun_domain_sending_key: Add `deletion_delay`, the number of seconds (0 to 3600) to wait before deleting the key. Together with `create_before_destroy` it keeps the old key valid while consumers pick up the replacement. Changing it updates the resource in place. Existing keys plan no changes after the upgrade.
 ```
 
 ```release-note:bug
 resource/mailgun_domain_sending_key: Changing `expiration` now plans a replacement. It used to plan an in-place update that always failed at apply time.
+```
+
+```release-note:note
+resource/mailgun_domain_sending_key: Because changing `expiration` now replaces the key, a configuration whose `expiration` differs from state creates a new key and deletes the old one on the next apply. Imported keys are stored with `expiration = 0`, so an imported key configured with a non-zero `expiration` is replaced. Without `create_before_destroy`, the old key is deleted before the new one exists.
 ```

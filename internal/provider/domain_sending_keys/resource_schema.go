@@ -54,13 +54,11 @@ func DomainSendingKeyResourceSchema() schema.Schema {
 				Description: "Seconds to wait before deleting the key in Mailgun. " +
 					"Combined with `create_before_destroy`, this keeps the old key valid while consumers " +
 					"pick up its replacement. Changing it updates the resource in place. " +
-					"Terraform only sees the value stored in state, so set it in an apply before the one that replaces or destroys the key. " +
-					"Defaults to 0 (delete immediately).",
+					"The delete uses the value already stored in state, so set it in an apply before the one that replaces or destroys the key. " +
+					"Between 0 and 3600. Unset or 0 deletes immediately.",
 				Optional: true,
-				Computed: true,
-				Default:  int64default.StaticInt64(0),
 				Validators: []validator.Int64{
-					int64validator.AtLeast(0),
+					int64validator.Between(0, 3600),
 				},
 			},
 			"id": schema.StringAttribute{

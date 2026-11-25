@@ -88,6 +88,33 @@ func TestDelete_InterruptedWaitKeepsKey(t *testing.T) {
 	}
 }
 
+// State from before deletion_delay existed, or with it unset, holds null.
+func TestDelete_NullDeletionDelayDeletesWithoutWaiting(t *testing.T) {
+	deleted := false
+	client := testClient(t, func(w http.ResponseWriter, req *http.Request) {
+		deleted = req.Method == http.MethodDelete
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"message":"deleted"}`))
+	})
+	state := tfsdk.State{
+		Raw: readStateObject(t, map[string]tftypes.Value{
+			"id":     tftypes.NewValue(tftypes.String, "key-1"),
+			"domain": tftypes.NewValue(tftypes.String, "example.com"),
+		}),
+		Schema: DomainSendingKeyResourceSchema(),
+	}
+	resp := &resource.DeleteResponse{State: state}
+
+	(&domainSendingKeyResource{client: client}).Delete(context.Background(), resource.DeleteRequest{State: state}, resp)
+
+	if resp.Diagnostics.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", resp.Diagnostics)
+	}
+	if !deleted {
+		t.Error("the key must be deleted")
+	}
+}
+
 func TestNewDomainSendingKeyResource_WaitsWithWaitFor(t *testing.T) {
 	r, ok := NewDomainSendingKeyResource().(*domainSendingKeyResource)
 	if !ok || r.wait == nil {
