@@ -22,11 +22,24 @@ var (
 
 // NewDomainSendingKeyResource creates a new domain sending key resource.
 func NewDomainSendingKeyResource() resource.Resource {
-	return &domainSendingKeyResource{}
+	return &domainSendingKeyResource{wait: waitFor}
 }
 
 type domainSendingKeyResource struct {
 	client *mailgun.Client
+	wait   func(context.Context, time.Duration) error
+}
+
+// waitFor blocks for d, or until ctx is cancelled.
+func waitFor(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (r *domainSendingKeyResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -153,12 +166,15 @@ func (r *domainSendingKeyResource) Read(ctx context.Context, req resource.ReadRe
 	resp.Diagnostics.Append(diags...)
 }
 
+// Update only ever sees a deletion_delay change: every attribute Mailgun
+// stores forces replacement, so the new value is written to state alone.
 func (r *domainSendingKeyResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// API keys are immutable - all changes require replacement via plan modifiers
-	resp.Diagnostics.AddError(
-		"Domain Sending Keys Cannot Be Updated",
-		"Mailgun API keys are immutable after creation. All changes require creating a new key.",
-	)
+	var plan DomainSendingKeyModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *domainSendingKeyResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -170,6 +186,15 @@ func (r *domainSendingKeyResource) Delete(ctx context.Context, req resource.Dele
 	}
 
 	keyID := state.Id.ValueString()
+
+	delay := time.Duration(state.DeletionDelay.ValueInt64()) * time.Second
+	if err := r.wait(ctx, delay); err != nil {
+		resp.Diagnostics.AddError(
+			"Domain Sending Key Deletion Interrupted",
+			fmt.Sprintf("Stopped waiting %s before deleting sending key %s, so it was not deleted: %s", delay, keyID, err.Error()),
+		)
+		return
+	}
 
 	deleteCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()

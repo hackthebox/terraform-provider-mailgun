@@ -17,6 +17,17 @@ description: |-
 {{tffile .ExampleFile }}
 {{- end }}
 
+## Rotating a Key
+
+A replacement normally deletes the old key before the new one exists, so every consumer fails until it picks up the new secret. To rotate without downtime:
+
+1. Set `deletion_delay` to longer than your consumers need to reload the secret, and apply. Changing it updates the resource in place.
+2. Add `lifecycle { create_before_destroy = true }` and trigger the replacement, for example with `replace_triggered_by` as in the example above.
+
+Terraform then creates the new key, updates every resource that references `secret`, and only then deletes the old key, after waiting `deletion_delay` seconds. If the apply is interrupted during the wait, the old key is kept in state and deleted on the next apply.
+
+Set `deletion_delay = 0` to revoke a leaked key immediately.
+
 {{ .SchemaMarkdown | trimspace }}
 
 {{- if or .HasImport .HasImportIDConfig .HasImportIdentityConfig }}

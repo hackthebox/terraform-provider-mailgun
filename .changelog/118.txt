@@ -1,0 +1,7 @@
+```release-note:enhancement
+resource/mailgun_domain_sending_key: Add `deletion_delay`, the number of seconds to wait before deleting the key. Together with `create_before_destroy` it keeps the old key valid while consumers pick up the replacement. Changing it updates the resource in place.
+```
+
+```release-note:bug
+resource/mailgun_domain_sending_key: Changing `expiration` now plans a replacement. It used to plan an in-place update that always failed at apply time.
+```

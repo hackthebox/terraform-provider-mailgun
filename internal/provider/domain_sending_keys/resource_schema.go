@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -42,6 +43,22 @@ func DomainSendingKeyResourceSchema() schema.Schema {
 				Optional:    true,
 				Computed:    true,
 				Default:     int64default.StaticInt64(0),
+				Validators: []validator.Int64{
+					int64validator.AtLeast(0),
+				},
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.RequiresReplace(),
+				},
+			},
+			"deletion_delay": schema.Int64Attribute{
+				Description: "Seconds to wait before deleting the key in Mailgun. " +
+					"Combined with `create_before_destroy`, this keeps the old key valid while consumers " +
+					"pick up its replacement. Changing it updates the resource in place. " +
+					"Terraform only sees the value stored in state, so set it in an apply before the one that replaces or destroys the key. " +
+					"Defaults to 0 (delete immediately).",
+				Optional: true,
+				Computed: true,
+				Default:  int64default.StaticInt64(0),
 				Validators: []validator.Int64{
 					int64validator.AtLeast(0),
 				},
