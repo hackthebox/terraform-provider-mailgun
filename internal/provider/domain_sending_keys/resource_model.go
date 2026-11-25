@@ -13,8 +13,9 @@ type DomainSendingKeyModel struct {
 	Domain types.String `tfsdk:"domain"`
 
 	// Optional fields
-	Description types.String `tfsdk:"description"`
-	Expiration  types.Int64  `tfsdk:"expiration"`
+	Description   types.String `tfsdk:"description"`
+	Expiration    types.Int64  `tfsdk:"expiration"`
+	DeletionDelay types.Int64  `tfsdk:"deletion_delay"`
 
 	// Computed fields
 	Id        types.String `tfsdk:"id"`
